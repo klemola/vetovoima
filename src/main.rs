@@ -24,7 +24,13 @@ pub struct Player {
     move_speed: f32,
 }
 
-const GRAVITY_FORCE_SCALE: f32 = 1600.0;
+const PIXELS_PER_METER: f32 = 20.0;
+const WORLD_RADIUS_METERS: f32 = 20.0;
+const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
+const PLAYER_WIDTH_METERS: f32 = 0.8;
+const PLAYER_HEIGHT_METERS: f32 = 1.8;
+
+const GRAVITY_FORCE_SCALE: f32 = 12_800.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 
@@ -41,7 +47,9 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
+            PIXELS_PER_METER,
+        ))
         .add_plugin(RapierDebugRenderPlugin::default())
         .add_startup_system(setup)
         .add_system(update_gravity)
@@ -57,16 +65,16 @@ fn setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     // World (the hollow circle that bounds the simulation)
-    let world_radius = 400.0;
+    let world_radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
     let world_thickness = 1.0;
     let world_shape = shapes::Circle {
-        radius: world_radius,
+        radius: world_radius_pixels,
         center: Vec2::ZERO,
     };
     let world_vertices: Vec<Vec2> = (0..=360)
         .map(|a: i32| {
             let a_rad: f32 = a as f32 * (PI / 180.0);
-            let r = world_radius - world_thickness;
+            let r = world_radius_pixels - world_thickness;
             let x = r * a_rad.cos();
             let y = r * a_rad.sin();
 
@@ -86,9 +94,9 @@ fn setup(mut commands: Commands) {
         .insert(Collider::polyline(world_vertices, None));
 
     // Gravity source (as a world object)
-    let gravity_source_radius: f32 = 50.0;
+    let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
     let gravity_source_shape = shapes::Circle {
-        radius: gravity_source_radius,
+        radius: gravity_source_radius_pixels,
         center: Vec2::ZERO,
     };
 
@@ -99,12 +107,12 @@ fn setup(mut commands: Commands) {
             Transform::default(),
         ))
         .insert(RigidBody::Fixed)
-        .insert(Collider::ball(gravity_source_radius))
+        .insert(Collider::ball(gravity_source_radius_pixels))
         .insert(Restitution::coefficient(0.1));
 
     // "Player"
-    let player_extent_x = 10.0;
-    let player_extent_y = 40.0;
+    let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
+    let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -127,7 +135,7 @@ fn setup(mut commands: Commands) {
         ))
         .insert(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
-            mass: 1000.0,
+            mass: 100.0,
             principal_inertia: 0.2,
         })
         .insert(Restitution::coefficient(0.1))
@@ -142,7 +150,7 @@ fn setup(mut commands: Commands) {
         });
 
     // Thing #1
-    let hexagon_thing_radius: f32 = 22.0;
+    let hexagon_thing_radius: f32 = 1.1 * PIXELS_PER_METER;
     let step_angle = PI / 3.0;
     let hexagon_vertices = vec![
         Vec2::new(hexagon_thing_radius, 0.0),
@@ -189,7 +197,7 @@ fn setup(mut commands: Commands) {
         });
 
     // Thing #2
-    let cube_thing_extent = 22.0;
+    let cube_thing_extent = 1.1 * PIXELS_PER_METER;
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -214,7 +222,7 @@ fn setup(mut commands: Commands) {
         });
 
     // Thing #3
-    let small_thing_radius: f32 = 10.0;
+    let small_thing_radius: f32 = 0.5 * PIXELS_PER_METER;
     let small_thing_shape = shapes::Circle {
         radius: small_thing_radius,
         center: Vec2::ZERO,
