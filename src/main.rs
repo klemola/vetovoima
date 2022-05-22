@@ -1,6 +1,9 @@
 use std::f32::consts::PI;
 
-use bevy::prelude::*;
+use bevy::{
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    prelude::*,
+};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
@@ -23,6 +26,12 @@ pub struct Player {
     turn_speed: f32,
     move_speed: f32,
 }
+
+#[derive(Component)]
+struct FpsText;
+
+#[derive(Component)]
+struct GravityText;
 
 const PIXELS_PER_METER: f32 = 20.0;
 const WORLD_RADIUS_METERS: f32 = 20.0;
@@ -51,17 +60,18 @@ fn main() {
             PIXELS_PER_METER,
         ))
         .add_plugin(RapierDebugRenderPlugin::default())
-        .add_startup_system(setup)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_startup_system(simulation_setup)
+        .add_startup_system(ui_setup)
         .add_system(update_gravity)
         .add_system(apply_forces)
         .add_system(update_player_velocity)
-        // .add_system(move_player)
-        // .add_system(rotate_player)
-        // .add_system(scale_player)
+        .add_system(fps_text_update)
+        .add_system(gravity_debug_text_update)
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn simulation_setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     // World (the hollow circle that bounds the simulation)
@@ -245,6 +255,85 @@ fn setup(mut commands: Commands) {
         });
 }
 
+fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 24.0;
+
+    commands.spawn_bundle(UiCameraBundle::default());
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(10.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "FPS ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::YELLOW,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(FpsText);
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(36.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Gravity scale ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::RED,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(GravityText);
+}
+
 fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
     if gravity_source.force >= MAX_GRAVITY_FORCE {
         // Enforce force upper limit
@@ -299,5 +388,26 @@ fn apply_forces(
         let base_force = force_dir * gravity_source.force * GRAVITY_FORCE_SCALE;
         let gravity_force = base_force / translation_2d.length();
         ext_force.force = gravity_force;
+    }
+}
+
+// UI systems
+
+fn fps_text_update(diagnostics: Res<Diagnostics>, mut fps_query: Query<&mut Text, With<FpsText>>) {
+    for mut text in fps_query.iter_mut() {
+        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(average) = fps.average() {
+                text.sections[1].value = format!("{:.2}", average);
+            }
+        }
+    }
+}
+
+fn gravity_debug_text_update(
+    mut gravity_query: Query<&mut Text, With<GravityText>>,
+    gravity_source: ResMut<GravitySource>,
+) {
+    for mut text in gravity_query.iter_mut() {
+        text.sections[1].value = format!("{:.2}", gravity_source.force);
     }
 }
