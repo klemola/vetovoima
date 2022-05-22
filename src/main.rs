@@ -1,5 +1,6 @@
 use std::f32::consts::PI;
 
+use bevy::app::AppExit;
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
@@ -43,6 +44,11 @@ const GRAVITY_FORCE_SCALE: f32 = 12_800.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 
+const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
+const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
+const BUTTON_PRESSED_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
+static EXIT_BUTTON_LABEL: &str = "Exit (ESC)";
+
 fn main() {
     assert!(MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE);
     assert!(GRAVITY_FORCE_SCALE > 0.0);
@@ -63,11 +69,13 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(simulation_setup)
         .add_startup_system(ui_setup)
+        .add_system(keyboard_input)
         .add_system(update_gravity)
         .add_system(apply_forces)
         .add_system(update_player_velocity)
         .add_system(fps_text_update)
         .add_system(gravity_debug_text_update)
+        .add_system(button_system)
         .run();
 }
 
@@ -262,11 +270,43 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(UiCameraBundle::default());
 
     commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(120.0), Val::Px(36.0)),
+                position: Rect {
+                    top: Val::Px(10.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                position_type: PositionType::Absolute,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: BUTTON_COLOR.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle {
+                text: Text::with_section(
+                    EXIT_BUTTON_LABEL,
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: font_size,
+                        color: Color::WHITE,
+                    },
+                    Default::default(),
+                ),
+                ..default()
+            });
+        });
+
+    commands
         .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
-                    top: Val::Px(10.0),
+                    top: Val::Px(56.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -302,7 +342,7 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
-                    top: Val::Px(36.0),
+                    top: Val::Px(80.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -333,6 +373,8 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(GravityText);
 }
+
+// Simulation systems
 
 fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
     if gravity_source.force >= MAX_GRAVITY_FORCE {
@@ -391,6 +433,14 @@ fn apply_forces(
     }
 }
 
+// Input systems
+
+fn keyboard_input(keyboard_input: Res<Input<KeyCode>>, mut exit: EventWriter<AppExit>) {
+    if keyboard_input.just_released(KeyCode::Escape) {
+        exit.send(AppExit);
+    }
+}
+
 // UI systems
 
 fn fps_text_update(diagnostics: Res<Diagnostics>, mut fps_query: Query<&mut Text, With<FpsText>>) {
@@ -409,5 +459,28 @@ fn gravity_debug_text_update(
 ) {
     for mut text in gravity_query.iter_mut() {
         text.sections[1].value = format!("{:.2}", gravity_source.force);
+    }
+}
+
+fn button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut UiColor),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut exit: EventWriter<AppExit>,
+) {
+    for (interaction, mut color) in interaction_query.iter_mut() {
+        match *interaction {
+            Interaction::Clicked => {
+                *color = BUTTON_PRESSED_COLOR.into();
+                exit.send(AppExit);
+            }
+            Interaction::Hovered => {
+                *color = BUTTON_COLOR_HOVER.into();
+            }
+            Interaction::None => {
+                *color = BUTTON_COLOR.into();
+            }
+        }
     }
 }
