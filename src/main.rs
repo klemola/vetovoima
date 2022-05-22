@@ -268,11 +268,24 @@ fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
 fn update_player_velocity(mut velocities: Query<(&mut Velocity, &Transform), With<Player>>) {
     let (mut vel, transform) = velocities.single_mut();
     let forward = transform.local_x();
-    let player_control_dir: Vec2 = Vec2::new(forward.x, forward.y).normalize();
-    let player_control_force = player_control_dir * 0.5;
+    let forward_dir: Vec2 = Vec2::new(forward.x, forward.y).normalize();
+    let player_control_force = forward_dir * 0.5;
+
+    let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
+    let dir_to_gravity_force = translation_2d.normalize();
+    let dot = forward_dir.dot(dir_to_gravity_force);
+    // maintain a right angle between player movement direction and gravity source direction
+    // TODO: slow down when close to the target (0 dot product)
+    let angular_velocity = if dot > 0.0 {
+        0.5
+    } else if dot < 0.0 {
+        -0.5
+    } else {
+        0.0
+    };
 
     vel.linvel += player_control_force;
-    vel.angvel = 0.0;
+    vel.angvel = angular_velocity;
 }
 
 fn apply_forces(
@@ -286,34 +299,5 @@ fn apply_forces(
         let base_force = force_dir * gravity_source.force * GRAVITY_FORCE_SCALE;
         let gravity_force = base_force / translation_2d.length();
         ext_force.force = gravity_force;
-        ext_force.torque = 0.0;
-    }
-}
-
-// Scratchpad
-
-fn move_player(mut player_query: Query<(&mut Transform, &mut Player)>, timer: Res<Time>) {
-    let (mut transform, player) = player_query.single_mut();
-    let forward = transform.local_x();
-
-    transform.translation += forward * player.move_speed * timer.delta_seconds();
-}
-
-fn rotate_player(mut player_query: Query<(&mut Transform, &mut Player)>, timer: Res<Time>) {
-    let (mut transform, player) = player_query.single_mut();
-    let incremental_turn_weight = player.turn_speed * timer.delta_seconds();
-    let old_rotation = transform.rotation;
-    let target = old_rotation * Quat::from_rotation_z(0.5);
-
-    transform.rotation = old_rotation.lerp(target, incremental_turn_weight);
-}
-
-fn scale_player(mut transform_query: Query<&mut Transform, With<Player>>, timer: Res<Time>) {
-    let mut transform = transform_query.single_mut();
-    let scale_direction = Vec3::new(-1., -1., 0.);
-    let scale_speed = 0.25;
-
-    if transform.scale.x > 0.25 || transform.scale.y > 0.25 {
-        transform.scale += scale_direction * scale_speed * timer.delta_seconds();
     }
 }
