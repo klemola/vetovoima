@@ -537,12 +537,13 @@ fn update_player_velocity(
     timer: Res<Time>,
 ) {
     let (mut vel, transform) = velocities.single_mut();
-    let max_player_velocity = 60.0;
+    let max_linear_velocity = 60.0;
+    let max_angular_velocity = 90.0;
 
     let forward = transform.local_x();
     let forward_dir = Vec2::new(forward.x, forward.y);
-    let base_intensity = if (vel.linvel * forward_dir).length() < max_player_velocity {
-        max_player_velocity
+    let base_intensity = if (vel.linvel * forward_dir).length() < max_linear_velocity {
+        max_linear_velocity
     } else {
         // Prevent player control velocity from overtaking gravity
         0.0
@@ -562,15 +563,16 @@ fn update_player_velocity(
     // maintain a right angle between player movement direction and gravity source direction
     // TODO: slow down when close to the target (0 dot product)
     let angular_velocity = if dot > 0.05 {
-        0.5
+        max_angular_velocity
     } else if dot < -0.05 {
-        -0.5
+        -max_angular_velocity
     } else {
         0.0
     };
 
     vel.linvel += player_control_force * timer.delta_seconds();
-    vel.angvel = angular_velocity;
+    vel.angvel = (angular_velocity * timer.delta_seconds())
+        .clamp(-max_angular_velocity, max_angular_velocity);
 }
 
 fn apply_forces(
