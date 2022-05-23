@@ -561,9 +561,9 @@ fn update_player_velocity(
     let dot = forward_dir.dot(dir_to_gravity_force);
     // maintain a right angle between player movement direction and gravity source direction
     // TODO: slow down when close to the target (0 dot product)
-    let angular_velocity = if dot > 0.0 {
+    let angular_velocity = if dot > 0.05 {
         0.5
-    } else if dot < 0.0 {
+    } else if dot < -0.05 {
         -0.5
     } else {
         0.0
