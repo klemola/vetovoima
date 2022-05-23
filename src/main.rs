@@ -4,6 +4,7 @@ use bevy::app::AppExit;
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
+    window::WindowMode,
 };
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -12,6 +13,7 @@ use bevy_rapier2d::prelude::*;
 pub struct GravitySource {
     force: f32,
     cycle: Attraction,
+    auto_cycle: bool,
 }
 
 enum Attraction {
@@ -23,10 +25,9 @@ enum Attraction {
 pub struct Attractable {}
 
 #[derive(Component)]
-pub struct Player {
-    turn_speed: f32,
-    move_speed: f32,
-}
+pub struct Player {}
+
+// UI tag components
 
 #[derive(Component)]
 struct FpsText;
@@ -34,48 +35,73 @@ struct FpsText;
 #[derive(Component)]
 struct GravityText;
 
+#[derive(Component)]
+struct PlayerText;
+
+#[derive(Component)]
+struct ExitButton;
+
+#[derive(Component)]
+struct AutoCycleButton;
+
+// Config
+
 const PIXELS_PER_METER: f32 = 20.0;
 const WORLD_RADIUS_METERS: f32 = 20.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
 
+const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
 const GRAVITY_FORCE_SCALE: f32 = 12_800.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
+const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 
 const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
 const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
-const BUTTON_PRESSED_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
+const BUTTON_ACTIVE_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
 static EXIT_BUTTON_LABEL: &str = "Exit (ESC)";
+static AUTO_CYCLE_BUTTON_LABEL: &str = "Cycle gravity (G)";
 
 fn main() {
     assert!(MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE);
     assert!(GRAVITY_FORCE_SCALE > 0.0);
+    assert!(
+        INITIAL_GRAVITY_FORCE <= MAX_GRAVITY_FORCE && INITIAL_GRAVITY_FORCE >= MIN_GRAVITY_FORCE
+    );
 
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(Color::BLACK))
+        .insert_resource(WindowDescriptor {
+            title: "Vetovoima".to_string(),
+            mode: WindowMode::Fullscreen,
+            ..default()
+        })
         .insert_resource(GravitySource {
-            force: 0.0,
+            force: INITIAL_GRAVITY_FORCE,
             cycle: Attraction::Negative,
+            auto_cycle: GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT,
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(ShapePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             PIXELS_PER_METER,
         ))
         .add_plugin(RapierDebugRenderPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(simulation_setup)
         .add_startup_system(ui_setup)
-        .add_system(keyboard_input)
+        .add_system(keyboard_input_effects)
         .add_system(update_gravity)
         .add_system(apply_forces)
         .add_system(update_player_velocity)
         .add_system(fps_text_update)
         .add_system(gravity_debug_text_update)
-        .add_system(button_system)
+        .add_system(player_text_update)
+        .add_system(exit_button_event)
+        .add_system(auto_cycle_button_event)
         .run();
 }
 
@@ -142,10 +168,7 @@ fn simulation_setup(mut commands: Commands) {
             Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
         ))
         .insert(Attractable {})
-        .insert(Player {
-            move_speed: 0.0,
-            turn_speed: 0.0,
-        })
+        .insert(Player {})
         .insert(RigidBody::Dynamic)
         .insert(Collider::cuboid(
             player_extent_x / 2.0,
@@ -159,7 +182,7 @@ fn simulation_setup(mut commands: Commands) {
         .insert(Restitution::coefficient(0.1))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
-            force: Vec2::new(0.0, 0.0),
+            force: Vec2::ZERO,
             torque: 0.0,
         })
         .insert(Velocity {
@@ -210,7 +233,7 @@ fn simulation_setup(mut commands: Commands) {
         .insert(Restitution::coefficient(0.1))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
-            force: Vec2::new(0.0, 0.0),
+            force: Vec2::ZERO,
             torque: 0.0,
         });
 
@@ -235,7 +258,7 @@ fn simulation_setup(mut commands: Commands) {
         .insert(Restitution::coefficient(0.3))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
-            force: Vec2::new(0.0, 0.0),
+            force: Vec2::ZERO,
             torque: 0.0,
         });
 
@@ -258,7 +281,7 @@ fn simulation_setup(mut commands: Commands) {
         .insert(Restitution::coefficient(1.0))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
-            force: Vec2::new(0.0, 0.0),
+            force: Vec2::ZERO,
             torque: 0.0,
         });
 }
@@ -299,7 +322,47 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ),
                 ..default()
             });
-        });
+        })
+        .insert(ExitButton);
+
+    let auto_cycle_button_color = if GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT {
+        BUTTON_ACTIVE_COLOR
+    } else {
+        BUTTON_COLOR
+    };
+
+    commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(190.0), Val::Px(36.0)),
+                position: Rect {
+                    top: Val::Px(10.0),
+                    left: Val::Px(140.0),
+                    ..default()
+                },
+                position_type: PositionType::Absolute,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: auto_cycle_button_color.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle {
+                text: Text::with_section(
+                    AUTO_CYCLE_BUTTON_LABEL,
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: font_size,
+                        color: Color::WHITE,
+                    },
+                    Default::default(),
+                ),
+                ..default()
+            });
+        })
+        .insert(AutoCycleButton);
 
     commands
         .spawn_bundle(TextBundle {
@@ -372,6 +435,42 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .insert(GravityText);
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(104.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Player velocity ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::RED,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(PlayerText);
 }
 
 // Simulation systems
@@ -387,20 +486,39 @@ fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
         gravity_source.cycle = Attraction::Negative;
     }
 
-    let increment = timer.delta_seconds() / 2.0;
-    let force_change = match gravity_source.cycle {
-        Attraction::Positive => -increment,
-        Attraction::Negative => increment,
-    };
+    if gravity_source.auto_cycle {
+        let increment = timer.delta_seconds() / 2.0;
+        let force_change = match gravity_source.cycle {
+            Attraction::Positive => -increment,
+            Attraction::Negative => increment,
+        };
 
-    gravity_source.force += force_change;
+        gravity_source.force += force_change;
+    }
 }
 
-fn update_player_velocity(mut velocities: Query<(&mut Velocity, &Transform), With<Player>>) {
+fn update_player_velocity(
+    mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
+    keyboard_input: Res<Input<KeyCode>>,
+) {
     let (mut vel, transform) = velocities.single_mut();
+
     let forward = transform.local_x();
-    let forward_dir: Vec2 = Vec2::new(forward.x, forward.y).normalize();
-    let player_control_force = forward_dir * 0.5;
+    let forward_dir = Vec2::new(forward.x, forward.y);
+    let base_intensity = if (vel.linvel * forward_dir).length() < 60.0 {
+        1.0
+    } else {
+        // Prevent player control velocity from overtaking gravity
+        0.0
+    };
+    let intensity = if keyboard_input.pressed(KeyCode::Left) {
+        -(base_intensity * 0.75)
+    } else if keyboard_input.pressed(KeyCode::Right) {
+        base_intensity
+    } else {
+        0.0
+    };
+    let player_control_force = forward_dir * intensity;
 
     let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
     let dir_to_gravity_force = translation_2d.normalize();
@@ -435,9 +553,17 @@ fn apply_forces(
 
 // Input systems
 
-fn keyboard_input(keyboard_input: Res<Input<KeyCode>>, mut exit: EventWriter<AppExit>) {
+fn keyboard_input_effects(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut exit: EventWriter<AppExit>,
+    mut gravity_source: ResMut<GravitySource>,
+) {
     if keyboard_input.just_released(KeyCode::Escape) {
         exit.send(AppExit);
+    }
+
+    if keyboard_input.just_released(KeyCode::G) {
+        gravity_source.auto_cycle = !gravity_source.auto_cycle;
     }
 }
 
@@ -462,24 +588,70 @@ fn gravity_debug_text_update(
     }
 }
 
-fn button_system(
+fn player_text_update(
+    velocity_query: Query<&Velocity, With<Player>>,
+    mut text_query: Query<&mut Text, With<PlayerText>>,
+) {
+    let velocity = velocity_query.single();
+    let mut text = text_query.single_mut();
+
+    text.sections[1].value = format!(
+        "[{:6.1},{:6.1}] / {:4.1}",
+        velocity.linvel.x, velocity.linvel.y, velocity.angvel
+    );
+}
+
+fn exit_button_event(
     mut interaction_query: Query<
         (&Interaction, &mut UiColor),
-        (Changed<Interaction>, With<Button>),
+        (Changed<Interaction>, With<ExitButton>),
     >,
     mut exit: EventWriter<AppExit>,
 ) {
     for (interaction, mut color) in interaction_query.iter_mut() {
         match *interaction {
             Interaction::Clicked => {
-                *color = BUTTON_PRESSED_COLOR.into();
                 exit.send(AppExit);
+                *color = BUTTON_ACTIVE_COLOR.into();
             }
             Interaction::Hovered => {
                 *color = BUTTON_COLOR_HOVER.into();
             }
             Interaction::None => {
                 *color = BUTTON_COLOR.into();
+            }
+        }
+    }
+}
+
+fn auto_cycle_button_event(
+    mut interaction_query: Query<
+        (&Interaction, &mut UiColor),
+        (Changed<Interaction>, With<AutoCycleButton>),
+    >,
+    mut gravity_source: ResMut<GravitySource>,
+) {
+    for (interaction, mut color) in interaction_query.iter_mut() {
+        let color_at_rest = if gravity_source.auto_cycle {
+            BUTTON_ACTIVE_COLOR
+        } else {
+            BUTTON_COLOR
+        };
+
+        match *interaction {
+            Interaction::Clicked => {
+                *color = color_at_rest.into();
+                gravity_source.auto_cycle = !gravity_source.auto_cycle;
+            }
+            Interaction::Hovered => {
+                *color = if gravity_source.auto_cycle {
+                    BUTTON_ACTIVE_COLOR.into()
+                } else {
+                    BUTTON_COLOR_HOVER.into()
+                };
+            }
+            Interaction::None => {
+                *color = color_at_rest.into();
             }
         }
     }
