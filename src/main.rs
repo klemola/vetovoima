@@ -1,6 +1,7 @@
+use std::env;
 use std::f32::consts::PI;
 
-use bevy::app::AppExit;
+use bevy::app::{AppExit, PluginGroupBuilder};
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
@@ -22,10 +23,10 @@ enum Attraction {
 }
 
 #[derive(Component)]
-pub struct Attractable {}
+pub struct Attractable;
 
 #[derive(Component)]
-pub struct Player {}
+pub struct Player;
 
 // UI tag components
 
@@ -85,24 +86,165 @@ fn main() {
             auto_cycle: GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT,
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugins(DevTools)
         .add_plugin(ShapePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             PIXELS_PER_METER,
         ))
-        .add_plugin(RapierDebugRenderPlugin::default())
         .add_startup_system(simulation_setup)
         .add_startup_system(ui_setup)
         .add_system(keyboard_input_effects)
         .add_system(update_gravity)
         .add_system(apply_forces)
         .add_system(update_player_velocity)
-        .add_system(fps_text_update)
-        .add_system(gravity_debug_text_update)
-        .add_system(player_text_update)
         .add_system(exit_button_event)
         .add_system(auto_cycle_button_event)
         .run();
+}
+
+struct DebugOutputPlugin;
+
+impl Plugin for DebugOutputPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_startup_system(debug_setup)
+            .add_system(fps_text_update)
+            .add_system(gravity_debug_text_update)
+            .add_system(player_text_update);
+    }
+}
+
+impl Default for DebugOutputPlugin {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+struct DevTools;
+
+impl PluginGroup for DevTools {
+    fn build(&mut self, group: &mut PluginGroupBuilder) {
+        match env::var("DEV_TOOLS") {
+            Result::Ok(value) if value == "1".to_string() => group
+                .add(RapierDebugRenderPlugin::default())
+                .add(FrameTimeDiagnosticsPlugin::default())
+                .add(DebugOutputPlugin::default()),
+
+            _ => group,
+        };
+    }
+}
+
+fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 24.0;
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(56.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "FPS ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::YELLOW,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(FpsText);
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(80.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Gravity scale ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::RED,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(GravityText);
+
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(104.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Player velocity ".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: font.clone(),
+                            font_size,
+                            color: Color::RED,
+                        },
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(PlayerText);
 }
 
 fn simulation_setup(mut commands: Commands) {
@@ -363,114 +505,6 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             });
         })
         .insert(AutoCycleButton);
-
-    commands
-        .spawn_bundle(TextBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: Rect {
-                    top: Val::Px(56.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
-                ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "FPS ".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::WHITE,
-                        },
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::YELLOW,
-                        },
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
-        .insert(FpsText);
-
-    commands
-        .spawn_bundle(TextBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: Rect {
-                    top: Val::Px(80.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
-                ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "Gravity scale ".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::WHITE,
-                        },
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::RED,
-                        },
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
-        .insert(GravityText);
-
-    commands
-        .spawn_bundle(TextBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: Rect {
-                    top: Val::Px(104.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
-                ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "Player velocity ".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::WHITE,
-                        },
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: TextStyle {
-                            font: font.clone(),
-                            font_size,
-                            color: Color::RED,
-                        },
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
-        .insert(PlayerText);
 }
 
 // Simulation systems
