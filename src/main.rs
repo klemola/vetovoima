@@ -534,19 +534,21 @@ fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
 fn update_player_velocity(
     mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
     keyboard_input: Res<Input<KeyCode>>,
+    timer: Res<Time>,
 ) {
     let (mut vel, transform) = velocities.single_mut();
+    let max_player_velocity = 60.0;
 
     let forward = transform.local_x();
     let forward_dir = Vec2::new(forward.x, forward.y);
-    let base_intensity = if (vel.linvel * forward_dir).length() < 60.0 {
-        1.0
+    let base_intensity = if (vel.linvel * forward_dir).length() < max_player_velocity {
+        max_player_velocity
     } else {
         // Prevent player control velocity from overtaking gravity
         0.0
     };
     let intensity = if keyboard_input.pressed(KeyCode::Left) {
-        -(base_intensity * 0.75)
+        -base_intensity
     } else if keyboard_input.pressed(KeyCode::Right) {
         base_intensity
     } else {
@@ -567,7 +569,7 @@ fn update_player_velocity(
         0.0
     };
 
-    vel.linvel += player_control_force;
+    vel.linvel += player_control_force * timer.delta_seconds();
     vel.angvel = angular_velocity;
 }
 
