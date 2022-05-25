@@ -509,7 +509,32 @@ fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 // Simulation systems
 
-fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
+fn update_gravity(
+    mut gravity_source: ResMut<GravitySource>,
+    timer: Res<Time>,
+    keyboard_input: Res<Input<KeyCode>>,
+) {
+    let force_change = if gravity_source.auto_cycle {
+        let increment = timer.delta_seconds() / 2.0;
+
+        match gravity_source.cycle {
+            Attraction::Positive => -increment,
+            Attraction::Negative => increment,
+        }
+    } else {
+        let increment = 0.04;
+
+        if keyboard_input.pressed(KeyCode::Up) {
+            -increment
+        } else if keyboard_input.pressed(KeyCode::Down) {
+            increment
+        } else {
+            0.0
+        }
+    };
+
+    gravity_source.force += force_change;
+
     if gravity_source.force >= MAX_GRAVITY_FORCE {
         // Enforce force upper limit
         gravity_source.force = MAX_GRAVITY_FORCE;
@@ -518,16 +543,6 @@ fn update_gravity(mut gravity_source: ResMut<GravitySource>, timer: Res<Time>) {
         // Enforce force lower limit
         gravity_source.force = MIN_GRAVITY_FORCE;
         gravity_source.cycle = Attraction::Negative;
-    }
-
-    if gravity_source.auto_cycle {
-        let increment = timer.delta_seconds() / 2.0;
-        let force_change = match gravity_source.cycle {
-            Attraction::Positive => -increment,
-            Attraction::Negative => increment,
-        };
-
-        gravity_source.force += force_change;
     }
 }
 
