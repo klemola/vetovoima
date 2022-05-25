@@ -54,7 +54,7 @@ const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
 
 const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
-const GRAVITY_FORCE_SCALE: f32 = 12_800.0 * GRAVITY_SOURCE_RADIUS_METERS;
+const GRAVITY_FORCE_SCALE: f32 = 12_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
@@ -552,7 +552,7 @@ fn update_player_velocity(
     timer: Res<Time>,
 ) {
     let (mut vel, transform) = velocities.single_mut();
-    let max_linear_velocity = 60.0;
+    let max_linear_velocity = 80.0;
     let max_angular_velocity = 90.0;
 
     let forward = transform.local_x();
