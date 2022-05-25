@@ -48,10 +48,13 @@ struct AutoCycleButton;
 // Config
 
 const PIXELS_PER_METER: f32 = 20.0;
-const WORLD_RADIUS_METERS: f32 = 20.0;
+const WORLD_RADIUS_METERS: f32 = 24.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
+
+const PLAYER_MAX_LINEAR_VELOCITY: f32 = 64.0;
+const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 
 const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
 const GRAVITY_FORCE_SCALE: f32 = 12_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
@@ -426,6 +429,34 @@ fn simulation_setup(mut commands: Commands) {
             force: Vec2::ZERO,
             torque: 0.0,
         });
+
+    // Heavy things
+
+    let heavy_thing_extent_x = 6.0 * PIXELS_PER_METER;
+    let heavy_thing_extent_y = 2.4 * PIXELS_PER_METER;
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            &shapes::Rectangle {
+                extents: Vec2::new(heavy_thing_extent_x, heavy_thing_extent_y),
+                origin: RectangleOrigin::Center,
+            },
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::BLUE)),
+            Transform::from_translation(Vec3::new(0.0, 380.0, 0.0)),
+        ))
+        .insert(Attractable {})
+        .insert(RigidBody::Dynamic)
+        .insert(Collider::cuboid(
+            heavy_thing_extent_x / 2.0,
+            heavy_thing_extent_y / 2.0,
+        ))
+        .insert(ColliderMassProperties::Density(12.0))
+        .insert(Restitution::coefficient(0.1))
+        .insert(GravityScale(0.0))
+        .insert(ExternalForce {
+            force: Vec2::ZERO,
+            torque: 0.0,
+        });
 }
 
 fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -552,13 +583,11 @@ fn update_player_velocity(
     timer: Res<Time>,
 ) {
     let (mut vel, transform) = velocities.single_mut();
-    let max_linear_velocity = 80.0;
-    let max_angular_velocity = 90.0;
 
     let forward = transform.local_x();
     let forward_dir = Vec2::new(forward.x, forward.y);
-    let base_intensity = if (vel.linvel * forward_dir).length() < max_linear_velocity {
-        max_linear_velocity
+    let base_intensity = if (vel.linvel * forward_dir).length() < PLAYER_MAX_LINEAR_VELOCITY {
+        PLAYER_MAX_LINEAR_VELOCITY
     } else {
         // Prevent player control velocity from overtaking gravity
         0.0
@@ -578,16 +607,16 @@ fn update_player_velocity(
     // maintain a right angle between player movement direction and gravity source direction
     // TODO: slow down when close to the target (0 dot product)
     let angular_velocity = if dot > 0.05 {
-        max_angular_velocity
+        PLAYER_MAX_ANGULAR_VELOCITY
     } else if dot < -0.05 {
-        -max_angular_velocity
+        -PLAYER_MAX_ANGULAR_VELOCITY
     } else {
         0.0
     };
 
     vel.linvel += player_control_force * timer.delta_seconds();
     vel.angvel = (angular_velocity * timer.delta_seconds())
-        .clamp(-max_angular_velocity, max_angular_velocity);
+        .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
 }
 
 fn apply_forces(
