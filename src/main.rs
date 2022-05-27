@@ -53,7 +53,8 @@ const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
 
-const PLAYER_MAX_LINEAR_VELOCITY: f32 = 64.0;
+const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
+const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 
 const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
@@ -586,16 +587,16 @@ fn update_player_velocity(
 
     let forward = transform.local_x();
     let forward_dir = Vec2::new(forward.x, forward.y);
-    let base_intensity = if (vel.linvel * forward_dir).length() < PLAYER_MAX_LINEAR_VELOCITY {
-        PLAYER_MAX_LINEAR_VELOCITY
-    } else {
-        // Prevent player control velocity from overtaking gravity
-        0.0
-    };
-    let intensity = if keyboard_input.pressed(KeyCode::Left) {
-        -base_intensity
-    } else if keyboard_input.pressed(KeyCode::Right) {
-        base_intensity
+    let current_velocity = (vel.linvel * forward_dir).length();
+    let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
+    let intensity = if keyboard_input.pressed(KeyCode::Left) && negative_velocity == 0.0 {
+        // Slow down until the player halts
+        PLAYER_SLOW_DOWN_VELOCITY
+    } else if keyboard_input.pressed(KeyCode::Right)
+        && current_velocity < PLAYER_MAX_FORWARD_VELOCITY
+    {
+        // Accelerate in the forward direction
+        PLAYER_MAX_FORWARD_VELOCITY
     } else {
         0.0
     };
