@@ -9,6 +9,7 @@ version = "0.1.0"
 bevy = "0.7"
 bevy_prototype_lyon = "0.5"
 bevy_rapier2d = {version = "0.13.2", features = ["simd-stable", "debug-render"]}
+rand = "0.8.5"
 
 # Add this to your Cargo.toml
 [profile.dev.package.bevy_rapier2d]

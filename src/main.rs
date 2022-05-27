@@ -1,3 +1,8 @@
+use rand::{
+    distributions::{Distribution, Standard},
+    prelude::*,
+    Rng,
+};
 use std::env;
 use std::f32::consts::PI;
 
@@ -7,6 +12,7 @@ use bevy::{
     prelude::*,
     window::WindowMode,
 };
+use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
@@ -336,128 +342,187 @@ fn simulation_setup(mut commands: Commands) {
             angvel: 0.0,
         });
 
-    // Thing #1
-    let hexagon_thing_radius: f32 = 1.1 * PIXELS_PER_METER;
-    let step_angle = PI / 3.0;
-    let hexagon_vertices = vec![
-        Vec2::new(hexagon_thing_radius, 0.0),
-        Vec2::new(
-            step_angle.cos() * hexagon_thing_radius,
-            step_angle.sin() * hexagon_thing_radius,
-        ),
-        Vec2::new(
-            (step_angle * 2.0).cos() * hexagon_thing_radius,
-            (step_angle * 2.0).sin() * hexagon_thing_radius,
-        ),
-        Vec2::new(-hexagon_thing_radius, 0.0),
-        Vec2::new(
-            -(step_angle * 2.0).cos() * hexagon_thing_radius,
-            -(step_angle * 2.0).sin() * hexagon_thing_radius,
-        ),
-        Vec2::new(
-            -step_angle.cos() * hexagon_thing_radius,
-            -step_angle.sin() * hexagon_thing_radius,
-        ),
-    ];
+    spawn_objects(&mut commands);
+}
 
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shapes::RegularPolygon {
-                sides: 6,
-                feature: shapes::RegularPolygonFeature::Radius(hexagon_thing_radius),
-                ..shapes::RegularPolygon::default()
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::RED)),
-            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        ))
-        .insert(Attractable {})
-        .insert(RigidBody::Dynamic)
-        .insert(
-            Collider::convex_hull(&hexagon_vertices)
-                .unwrap_or(Collider::ball(hexagon_thing_radius)),
-        )
-        .insert(Restitution::coefficient(0.1))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        });
+enum ObjectKind {
+    Rectangle,
+    Hexagon,
+    Circle,
+}
 
-    // Thing #2
-    let cube_thing_extent = 1.1 * PIXELS_PER_METER;
+impl Distribution<ObjectKind> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ObjectKind {
+        let distance: f32 = rng.gen();
 
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shapes::Rectangle {
-                extents: Vec2::new(cube_thing_extent, cube_thing_extent),
-                origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::RED)),
-            Transform::from_translation(Vec3::new(-100.0, 50.0, 0.0)),
-        ))
-        .insert(Attractable {})
-        .insert(RigidBody::Dynamic)
-        .insert(Collider::cuboid(
-            cube_thing_extent / 2.0,
-            cube_thing_extent / 2.0,
-        ))
-        .insert(Restitution::coefficient(0.3))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        });
+        if distance > 0.8 {
+            ObjectKind::Circle
+        } else if distance < 0.25 {
+            ObjectKind::Hexagon
+        } else {
+            ObjectKind::Rectangle
+        }
+    }
+}
 
-    // Thing #3
-    let small_thing_radius: f32 = 0.5 * PIXELS_PER_METER;
-    let small_thing_shape = shapes::Circle {
-        radius: small_thing_radius,
-        center: Vec2::ZERO,
+enum ObjectDensity {
+    Light,
+    Medium,
+    Heavy,
+}
+
+impl Distribution<ObjectDensity> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ObjectDensity {
+        let distance: f32 = rng.gen();
+
+        if distance > 0.85 {
+            ObjectDensity::Heavy
+        } else if distance < 0.3 {
+            ObjectDensity::Light
+        } else {
+            ObjectDensity::Medium
+        }
+    }
+}
+
+fn spawn_objects(commands: &mut Commands) {
+    let max_objects = 20;
+    let full_turn_radians = 2.0 * PI;
+
+    for n in 1..=max_objects {
+        let object_kind: ObjectKind = rand::random();
+        let object_density: ObjectDensity = rand::random();
+        let range = match object_density {
+            ObjectDensity::Light => 0.2..=0.5,
+            ObjectDensity::Medium => 0.4..=0.8,
+            ObjectDensity::Heavy => 0.8..=0.9,
+        };
+        let distance_from_center_meters: f32 = thread_rng().gen_range(range) * WORLD_RADIUS_METERS;
+        let base_x = distance_from_center_meters * PIXELS_PER_METER;
+        let angle = (full_turn_radians / max_objects as f32) * n as f32;
+        let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, 0.0));
+
+        transform.rotate_around(Vec3::ZERO, Quat::from_rotation_z(angle));
+        spawn_object(commands, object_kind, object_density, transform);
+    }
+}
+
+fn spawn_object(
+    commands: &mut Commands,
+    kind: ObjectKind,
+    density: ObjectDensity,
+    transform: Transform,
+) {
+    let (density_value, base_scale_factor, color) = match density {
+        ObjectDensity::Light => (0.75, 1.0, Color::GRAY),
+        ObjectDensity::Medium => (1.0, 2.0, Color::RED),
+        ObjectDensity::Heavy => (10.0, 3.2, Color::BLUE),
+    };
+    let scale_variation: f32 = thread_rng().gen_range(-0.2..0.4);
+    let scale_factor = (base_scale_factor + (base_scale_factor * scale_variation)).max(1.0);
+    let (shape_bundle, collider, restitution_coefficient) = match kind {
+        ObjectKind::Rectangle => rectangle_props(transform, scale_factor, color),
+        ObjectKind::Hexagon => hexagon_props(transform, scale_factor, color),
+        ObjectKind::Circle => circle_props(transform, scale_factor, color),
     };
 
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &small_thing_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::RED)),
-            Transform::from_translation(Vec3::new(-10.0, -50.0, 0.0)),
-        ))
+        .spawn_bundle(shape_bundle)
         .insert(Attractable {})
         .insert(RigidBody::Dynamic)
-        .insert(Collider::ball(small_thing_radius))
-        .insert(Restitution::coefficient(1.0))
+        .insert(collider)
+        .insert(ColliderMassProperties::Density(density_value))
+        .insert(Restitution::coefficient(restitution_coefficient))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
             force: Vec2::ZERO,
             torque: 0.0,
         });
+}
 
-    // Heavy things
+fn rectangle_props(
+    transform: Transform,
+    scale_factor: f32,
+    color: Color,
+) -> (ShapeBundle, Collider, f32) {
+    let extent = scale_factor * PIXELS_PER_METER;
 
-    let heavy_thing_extent_x = 6.0 * PIXELS_PER_METER;
-    let heavy_thing_extent_y = 2.4 * PIXELS_PER_METER;
+    let shape = shapes::Rectangle {
+        extents: Vec2::new(extent, extent),
+        origin: RectangleOrigin::Center,
+    };
 
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shapes::Rectangle {
-                extents: Vec2::new(heavy_thing_extent_x, heavy_thing_extent_y),
-                origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::BLUE)),
-            Transform::from_translation(Vec3::new(0.0, 380.0, 0.0)),
-        ))
-        .insert(Attractable {})
-        .insert(RigidBody::Dynamic)
-        .insert(Collider::cuboid(
-            heavy_thing_extent_x / 2.0,
-            heavy_thing_extent_y / 2.0,
-        ))
-        .insert(ColliderMassProperties::Density(12.0))
-        .insert(Restitution::coefficient(0.1))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        });
+    let shape_bundle = GeometryBuilder::build_as(
+        &shape,
+        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
+        transform,
+    );
+
+    let collider = Collider::cuboid(extent / 2.0, extent / 2.0);
+
+    (shape_bundle, collider, 0.1)
+}
+
+fn hexagon_props(
+    transform: Transform,
+    scale_factor: f32,
+    color: Color,
+) -> (ShapeBundle, Collider, f32) {
+    let radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
+    let step_angle = PI / 3.0;
+    let hexagon_vertices = vec![
+        Vec2::new(radius, 0.0),
+        Vec2::new(step_angle.cos() * radius, step_angle.sin() * radius),
+        Vec2::new(
+            (step_angle * 2.0).cos() * radius,
+            (step_angle * 2.0).sin() * radius,
+        ),
+        Vec2::new(-radius, 0.0),
+        Vec2::new(
+            -(step_angle * 2.0).cos() * radius,
+            -(step_angle * 2.0).sin() * radius,
+        ),
+        Vec2::new(-step_angle.cos() * radius, -step_angle.sin() * radius),
+    ];
+
+    let shape = shapes::RegularPolygon {
+        sides: 6,
+        feature: shapes::RegularPolygonFeature::Radius(radius),
+        ..shapes::RegularPolygon::default()
+    };
+
+    let shape_bundle = GeometryBuilder::build_as(
+        &shape,
+        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
+        transform,
+    );
+
+    let collider = Collider::convex_hull(&hexagon_vertices).unwrap_or(Collider::ball(radius));
+
+    (shape_bundle, collider, 0.2)
+}
+
+fn circle_props(
+    transform: Transform,
+    scale_factor: f32,
+    color: Color,
+) -> (ShapeBundle, Collider, f32) {
+    let radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
+
+    let shape = shapes::Circle {
+        radius: radius,
+        center: Vec2::ZERO,
+    };
+
+    let shape_bundle = GeometryBuilder::build_as(
+        &shape,
+        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
+        transform,
+    );
+
+    let collider = Collider::ball(radius);
+
+    (shape_bundle, collider, 1.0)
 }
 
 fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
