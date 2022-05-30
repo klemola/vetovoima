@@ -1,8 +1,5 @@
-use rand::{
-    distributions::{Distribution, Standard},
-    prelude::*,
-    Rng,
-};
+use rand::{prelude::*, Rng};
+use rand_distr::{Distribution, Normal, Standard};
 use std::env;
 use std::f32::consts::PI;
 
@@ -53,8 +50,8 @@ struct AutoCycleButton;
 
 // Config
 
-const PIXELS_PER_METER: f32 = 20.0;
-const WORLD_RADIUS_METERS: f32 = 24.0;
+const PIXELS_PER_METER: f32 = 16.0;
+const WORLD_RADIUS_METERS: f32 = 28.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
@@ -262,32 +259,55 @@ fn simulation_setup(mut commands: Commands) {
 
     // World (the hollow circle that bounds the simulation)
     let world_radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
-    let world_thickness = 1.0;
-    let world_shape = shapes::Circle {
-        radius: world_radius_pixels,
-        center: Vec2::ZERO,
-    };
-    let world_vertices: Vec<Vec2> = (0..=360)
-        .map(|a: i32| {
-            let a_rad: f32 = a as f32 * (PI / 180.0);
-            let r = world_radius_pixels - world_thickness;
+    // the outer edge of the circle polygon
+    let outer_circle_steps = 180;
+    let world_vertices_outer: Vec<Vec2> = (0..=outer_circle_steps)
+        .map(|step: i32| {
+            let step_multiplier = 360 / outer_circle_steps;
+            let a = (step * step_multiplier) as f32;
+            let a_rad: f32 = a * (PI / 180.0);
+            let r = world_radius_pixels;
             let x = r * a_rad.cos();
             let y = r * a_rad.sin();
 
             Vec2::new(x, y)
         })
         .collect();
+    // the inner edge of the circle polygon (with some variation)
+    let inner_circle_steps = 180;
+    let world_vertices_inner: Vec<Vec2> = (0..=inner_circle_steps)
+        .map(|step: i32| {
+            let mean = 1.6 * PIXELS_PER_METER;
+            let variation = if step > 0 && step < inner_circle_steps {
+                let std_deviation = 2.2;
+                let normal_distribution = Normal::new(mean, std_deviation).unwrap();
+                normal_distribution.sample(&mut rand::thread_rng())
+            } else {
+                mean
+            };
+            let step_multiplier = 360 / inner_circle_steps;
+            let a = (step * step_multiplier) as f32;
+            let a_rad: f32 = a * (PI / 180.0);
+            let r = world_radius_pixels - variation;
+            let x = r * a_rad.cos();
+            let y = r * a_rad.sin();
+
+            Vec2::new(x, y)
+        })
+        .collect();
+    let world_vertices = vec![world_vertices_inner.clone(), world_vertices_outer.clone()].concat();
+    let world_shape = &shapes::Polygon {
+        points: world_vertices.clone(),
+        closed: true,
+    };
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
-            &world_shape,
-            DrawMode::Stroke(StrokeMode {
-                color: Color::BLUE,
-                options: StrokeOptions::DEFAULT,
-            }),
+            world_shape,
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
             Transform::default(),
         ))
-        .insert(Collider::polyline(world_vertices, None));
+        .insert(Collider::polyline(world_vertices_inner, None));
 
     // Gravity source (as a world object)
     let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
@@ -386,16 +406,16 @@ impl Distribution<ObjectDensity> for Standard {
 }
 
 fn spawn_objects(commands: &mut Commands) {
-    let max_objects = 20;
+    let max_objects = 16;
     let full_turn_radians = 2.0 * PI;
 
     for n in 1..=max_objects {
         let object_kind: ObjectKind = rand::random();
         let object_density: ObjectDensity = rand::random();
         let range = match object_density {
-            ObjectDensity::Light => 0.2..=0.5,
-            ObjectDensity::Medium => 0.4..=0.8,
-            ObjectDensity::Heavy => 0.8..=0.9,
+            ObjectDensity::Light => 0.2..=0.4,
+            ObjectDensity::Medium => 0.4..=0.6,
+            ObjectDensity::Heavy => 0.8..=0.8,
         };
         let distance_from_center_meters: f32 = thread_rng().gen_range(range) * WORLD_RADIUS_METERS;
         let base_x = distance_from_center_meters * PIXELS_PER_METER;
@@ -414,7 +434,7 @@ fn spawn_object(
     transform: Transform,
 ) {
     let (density_value, base_scale_factor, color) = match density {
-        ObjectDensity::Light => (0.75, 1.0, Color::GRAY),
+        ObjectDensity::Light => (0.75, 1.0, Color::PINK),
         ObjectDensity::Medium => (1.0, 2.0, Color::RED),
         ObjectDensity::Heavy => (10.0, 3.2, Color::BLUE),
     };
