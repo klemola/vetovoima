@@ -1,4 +1,4 @@
-use rand::{prelude::*, Rng};
+use rand::{prelude::*, seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Normal, Standard};
 use std::env;
 use std::f32::consts::PI;
@@ -31,6 +31,9 @@ pub struct Attractable;
 #[derive(Component)]
 pub struct Player;
 
+#[derive(Component)]
+pub struct Flag;
+
 // UI tag components
 
 #[derive(Component)]
@@ -55,6 +58,8 @@ const WORLD_RADIUS_METERS: f32 = 28.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
+const FLAG_WIDTH_METERS: f32 = 0.4;
+const FLAG_HEIGHT_METERS: f32 = 3.0;
 
 const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
@@ -307,7 +312,7 @@ fn simulation_setup(mut commands: Commands) {
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
             Transform::default(),
         ))
-        .insert(Collider::polyline(world_vertices_inner, None));
+        .insert(Collider::polyline(world_vertices_inner.clone(), None));
 
     // Gravity source (as a world object)
     let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
@@ -326,9 +331,39 @@ fn simulation_setup(mut commands: Commands) {
         .insert(Collider::ball(gravity_source_radius_pixels))
         .insert(Restitution::coefficient(0.1));
 
+    // Flag (goal)
+    let flag_extent_x = FLAG_WIDTH_METERS * PIXELS_PER_METER;
+    let flag_extent_y = FLAG_HEIGHT_METERS * PIXELS_PER_METER;
+    // a point somewhere along the inner edge of the world (the ground)
+    let flag_anchor = world_vertices_inner
+        .iter()
+        .choose(&mut thread_rng())
+        .unwrap_or(&Vec2::ZERO);
+    let flag_transform = stand_upright_at_anchor(&flag_anchor, flag_extent_y);
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            &shapes::Rectangle {
+                extents: Vec2::new(flag_extent_x, flag_extent_y),
+                origin: RectangleOrigin::Center,
+            },
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::ORANGE)),
+            flag_transform,
+        ))
+        .insert(Flag {})
+        .insert(RigidBody::Fixed)
+        .insert(Collider::cuboid(flag_extent_x / 2.0, flag_extent_y / 2.0));
+
     // "Player"
     let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
     let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
+    let min_player_distance_from_flag = WORLD_RADIUS_METERS * PIXELS_PER_METER * 1.8;
+    let fallback_anchor = &Vec2::new(0.0, WORLD_RADIUS_METERS * PIXELS_PER_METER * -0.5);
+    let player_anchor = world_vertices_inner
+        .iter()
+        .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
+        .unwrap_or(fallback_anchor);
+    let player_transform = stand_upright_at_anchor(&player_anchor, player_extent_y);
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -337,7 +372,7 @@ fn simulation_setup(mut commands: Commands) {
                 origin: RectangleOrigin::Center,
             },
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::YELLOW)),
-            Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
+            player_transform,
         ))
         .insert(Attractable {})
         .insert(Player {})
@@ -363,6 +398,21 @@ fn simulation_setup(mut commands: Commands) {
         });
 
     spawn_objects(&mut commands);
+}
+
+fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
+    let dir_to_gravity_force = -anchor.normalize();
+    let angle_to_gravity_force = dir_to_gravity_force.y.atan2(dir_to_gravity_force.x);
+    // move the anchor towards the gravity force by half it's height to make it stick from the ground
+    let anchor_aligned_with_ground = *anchor + (dir_to_gravity_force * object_height * 0.5);
+
+    Transform::from_translation(Vec3::new(
+        anchor_aligned_with_ground.x,
+        anchor_aligned_with_ground.y,
+        0.0,
+    ))
+    // the extra angle aligns positive Y (the top of the flag pole) with the gravity force
+    .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
 }
 
 enum ObjectKind {
@@ -688,8 +738,8 @@ fn update_player_velocity(
     let player_control_force = forward_dir * intensity;
 
     let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
-    let dir_to_gravity_force = translation_2d.normalize();
-    let dot = forward_dir.dot(dir_to_gravity_force);
+    let dir_from_gravity_source = translation_2d.normalize();
+    let dot = forward_dir.dot(dir_from_gravity_source);
     // maintain a right angle between player movement direction and gravity source direction
     // TODO: slow down when close to the target (0 dot product)
     let angular_velocity = if dot > 0.05 {
