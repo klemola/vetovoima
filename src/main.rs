@@ -13,8 +13,30 @@ use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+enum AppState {
+    InMenu,
+    LoadingLevel,
+    InGame,
+    GameOver,
+    ObserveSimulation,
+}
+
 #[derive(Component)]
-pub struct GravitySource {
+enum MenuButton {
+    NewGame,
+    Exit,
+    SimulationMode,
+}
+
+#[derive(Component)]
+struct World {
+    vertices: Vec<Vec2>,
+    vertices_inner_edge: Vec<Vec2>,
+}
+
+#[derive(Component)]
+struct GravitySource {
     force: f32,
     cycle: Attraction,
     auto_cycle: bool,
@@ -26,15 +48,21 @@ enum Attraction {
 }
 
 #[derive(Component)]
-pub struct Attractable;
+struct GameObject;
 
 #[derive(Component)]
-pub struct Player;
+struct Attractable;
 
 #[derive(Component)]
-pub struct Flag;
+struct Player;
+
+#[derive(Component)]
+struct Flag;
 
 // UI tag components
+
+#[derive(Component)]
+struct MainMenu;
 
 #[derive(Component)]
 struct FpsText;
@@ -44,12 +72,6 @@ struct GravityText;
 
 #[derive(Component)]
 struct PlayerText;
-
-#[derive(Component)]
-struct ExitButton;
-
-#[derive(Component)]
-struct AutoCycleButton;
 
 // Config
 
@@ -74,8 +96,9 @@ const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
 const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
 const BUTTON_ACTIVE_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
-static EXIT_BUTTON_LABEL: &str = "Exit (ESC)";
-static AUTO_CYCLE_BUTTON_LABEL: &str = "Cycle gravity (G)";
+static APP_NAME: &str = "vetovoima";
+static NEW_GAME_BUTTON_LABEL: &str = "New game";
+static EXIT_BUTTON_LABEL: &str = "Exit";
 
 fn main() {
     assert!(MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE);
@@ -83,6 +106,8 @@ fn main() {
     assert!(
         INITIAL_GRAVITY_FORCE <= MAX_GRAVITY_FORCE && INITIAL_GRAVITY_FORCE >= MIN_GRAVITY_FORCE
     );
+
+    let world: World = create_world();
 
     App::new()
         .insert_resource(Msaa { samples: 4 })
@@ -92,11 +117,13 @@ fn main() {
             mode: WindowMode::Fullscreen,
             ..default()
         })
+        .insert_resource(world)
         .insert_resource(GravitySource {
             force: INITIAL_GRAVITY_FORCE,
             cycle: Attraction::Negative,
             auto_cycle: GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT,
         })
+        .add_state(AppState::InMenu)
         .add_plugins(DefaultPlugins)
         .add_plugins(DevTools)
         .add_plugin(ShapePlugin)
@@ -105,13 +132,68 @@ fn main() {
         ))
         .add_startup_system(simulation_setup)
         .add_startup_system(ui_setup)
-        .add_system(keyboard_input_effects)
-        .add_system(update_gravity)
-        .add_system(apply_forces)
-        .add_system(update_player_velocity)
-        .add_system(exit_button_event)
-        .add_system(auto_cycle_button_event)
+        .add_system_set(SystemSet::on_enter(AppState::InMenu).with_system(show_menu))
+        .add_system_set(
+            SystemSet::on_update(AppState::InMenu)
+                .with_system(menu_button_state)
+                .with_system(menu_button_event),
+        )
+        .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu))
+        .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
+        .add_system_set(
+            SystemSet::on_update(AppState::InGame)
+                .with_system(update_gravity)
+                .with_system(apply_forces)
+                .with_system(update_player_velocity),
+        )
+        .add_system(main_controls)
         .run();
+}
+
+fn create_world() -> World {
+    // World (the hollow circle that bounds the simulation)
+    let radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
+    // the outer edge of the circle polygon
+    let outer_circle_steps = 180;
+    let vertices_outer: Vec<Vec2> = (0..=outer_circle_steps)
+        .map(|step: i32| {
+            let step_multiplier = 360 / outer_circle_steps;
+            let a = (step * step_multiplier) as f32;
+            let a_rad: f32 = a * (PI / 180.0);
+            let r = radius_pixels;
+            let x = r * a_rad.cos();
+            let y = r * a_rad.sin();
+
+            Vec2::new(x, y)
+        })
+        .collect();
+    // the inner edge of the circle polygon (with some variation)
+    let inner_circle_steps = 180;
+    let vertices_inner_edge: Vec<Vec2> = (0..=inner_circle_steps)
+        .map(|step: i32| {
+            let mean = 1.6 * PIXELS_PER_METER;
+            let variation = if step > 0 && step < inner_circle_steps {
+                let std_deviation = 2.2;
+                let normal_distribution = Normal::new(mean, std_deviation).unwrap();
+                normal_distribution.sample(&mut rand::thread_rng())
+            } else {
+                mean
+            };
+            let step_multiplier = 360 / inner_circle_steps;
+            let a = (step * step_multiplier) as f32;
+            let a_rad: f32 = a * (PI / 180.0);
+            let r = radius_pixels - variation;
+            let x = r * a_rad.cos();
+            let y = r * a_rad.sin();
+
+            Vec2::new(x, y)
+        })
+        .collect();
+
+    World {
+        vertices: vec![vertices_inner_edge.clone(), vertices_outer.clone()].concat(),
+        vertices_inner_edge,
+    }
 }
 
 struct DebugOutputPlugin;
@@ -155,7 +237,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
-                    top: Val::Px(56.0),
+                    top: Val::Px(10.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -191,7 +273,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
-                    top: Val::Px(80.0),
+                    top: Val::Px(34.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -227,7 +309,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: Rect {
-                    top: Val::Px(104.0),
+                    top: Val::Px(58.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -259,50 +341,11 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(PlayerText);
 }
 
-fn simulation_setup(mut commands: Commands) {
+fn simulation_setup(mut commands: Commands, world: Res<World>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
-    // World (the hollow circle that bounds the simulation)
-    let world_radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
-    // the outer edge of the circle polygon
-    let outer_circle_steps = 180;
-    let world_vertices_outer: Vec<Vec2> = (0..=outer_circle_steps)
-        .map(|step: i32| {
-            let step_multiplier = 360 / outer_circle_steps;
-            let a = (step * step_multiplier) as f32;
-            let a_rad: f32 = a * (PI / 180.0);
-            let r = world_radius_pixels;
-            let x = r * a_rad.cos();
-            let y = r * a_rad.sin();
-
-            Vec2::new(x, y)
-        })
-        .collect();
-    // the inner edge of the circle polygon (with some variation)
-    let inner_circle_steps = 180;
-    let world_vertices_inner: Vec<Vec2> = (0..=inner_circle_steps)
-        .map(|step: i32| {
-            let mean = 1.6 * PIXELS_PER_METER;
-            let variation = if step > 0 && step < inner_circle_steps {
-                let std_deviation = 2.2;
-                let normal_distribution = Normal::new(mean, std_deviation).unwrap();
-                normal_distribution.sample(&mut rand::thread_rng())
-            } else {
-                mean
-            };
-            let step_multiplier = 360 / inner_circle_steps;
-            let a = (step * step_multiplier) as f32;
-            let a_rad: f32 = a * (PI / 180.0);
-            let r = world_radius_pixels - variation;
-            let x = r * a_rad.cos();
-            let y = r * a_rad.sin();
-
-            Vec2::new(x, y)
-        })
-        .collect();
-    let world_vertices = vec![world_vertices_inner.clone(), world_vertices_outer.clone()].concat();
     let world_shape = &shapes::Polygon {
-        points: world_vertices.clone(),
+        points: world.vertices.clone(),
         closed: true,
     };
 
@@ -312,7 +355,7 @@ fn simulation_setup(mut commands: Commands) {
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
             Transform::default(),
         ))
-        .insert(Collider::polyline(world_vertices_inner.clone(), None));
+        .insert(Collider::polyline(world.vertices_inner_edge.clone(), None));
 
     // Gravity source (as a world object)
     let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
@@ -330,89 +373,137 @@ fn simulation_setup(mut commands: Commands) {
         .insert(RigidBody::Fixed)
         .insert(Collider::ball(gravity_source_radius_pixels))
         .insert(Restitution::coefficient(0.1));
-
-    // Flag (goal)
-    let flag_extent_x = FLAG_WIDTH_METERS * PIXELS_PER_METER;
-    let flag_extent_y = FLAG_HEIGHT_METERS * PIXELS_PER_METER;
-    // a point somewhere along the inner edge of the world (the ground)
-    let flag_anchor = world_vertices_inner
-        .iter()
-        .choose(&mut thread_rng())
-        .unwrap_or(&Vec2::ZERO);
-    let flag_transform = stand_upright_at_anchor(&flag_anchor, flag_extent_y);
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shapes::Rectangle {
-                extents: Vec2::new(flag_extent_x, flag_extent_y),
-                origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::ORANGE)),
-            flag_transform,
-        ))
-        .insert(Flag {})
-        .insert(RigidBody::Fixed)
-        .insert(Collider::cuboid(flag_extent_x / 2.0, flag_extent_y / 2.0));
-
-    // "Player"
-    let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
-    let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
-    let min_player_distance_from_flag = WORLD_RADIUS_METERS * PIXELS_PER_METER * 1.8;
-    let fallback_anchor = &Vec2::new(0.0, WORLD_RADIUS_METERS * PIXELS_PER_METER * -0.5);
-    let player_anchor = world_vertices_inner
-        .iter()
-        .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
-        .unwrap_or(fallback_anchor);
-    let player_transform = stand_upright_at_anchor(&player_anchor, player_extent_y);
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &shapes::Rectangle {
-                extents: Vec2::new(player_extent_x, player_extent_y),
-                origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::YELLOW)),
-            player_transform,
-        ))
-        .insert(Attractable {})
-        .insert(Player {})
-        .insert(RigidBody::Dynamic)
-        .insert(Collider::cuboid(
-            player_extent_x / 2.0,
-            player_extent_y / 2.0,
-        ))
-        .insert(MassProperties {
-            local_center_of_mass: Vec2::new(0.0, -player_extent_y),
-            mass: 100.0,
-            principal_inertia: 0.2,
-        })
-        .insert(Restitution::coefficient(0.1))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        })
-        .insert(Velocity {
-            linvel: Vec2::ZERO,
-            angvel: 0.0,
-        });
-
-    spawn_objects(&mut commands);
 }
 
-fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
-    let dir_to_gravity_force = -anchor.normalize();
-    let angle_to_gravity_force = dir_to_gravity_force.y.atan2(dir_to_gravity_force.x);
-    // move the anchor towards the gravity force by half it's height to make it stick from the ground
-    let anchor_aligned_with_ground = *anchor + (dir_to_gravity_force * object_height * 0.5);
+fn ui_setup(mut commands: Commands) {
+    commands.spawn_bundle(UiCameraBundle::default());
+}
 
-    Transform::from_translation(Vec3::new(
-        anchor_aligned_with_ground.x,
-        anchor_aligned_with_ground.y,
-        0.0,
-    ))
-    // the extra angle aligns positive Y (the top of the flag pole) with the gravity force
-    .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
+fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 64.0;
+
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::ColumnReverse,
+                padding: Rect::all(Val::Px(10.0)),
+                ..Default::default()
+            },
+            color: Color::BLACK.into(),
+            ..Default::default()
+        })
+        .insert(MainMenu)
+        .with_children(|menu_node| {
+            menu_node
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(600.0), Val::Px(120.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: Rect::all(Val::Px(20.0)),
+                        ..default()
+                    },
+                    color: Color::BLACK.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle {
+                        text: Text::with_section(
+                            APP_NAME,
+                            TextStyle {
+                                font: font.clone(),
+                                font_size: font_size * 1.6,
+                                color: Color::WHITE,
+                            },
+                            Default::default(),
+                        ),
+                        ..default()
+                    });
+                });
+
+            menu_node
+                .spawn_bundle(ButtonBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: Rect::all(Val::Px(10.0)),
+                        ..default()
+                    },
+                    color: BUTTON_COLOR.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle {
+                        text: Text::with_section(
+                            NEW_GAME_BUTTON_LABEL,
+                            TextStyle {
+                                font: font.clone(),
+                                font_size: font_size,
+                                color: Color::WHITE,
+                            },
+                            Default::default(),
+                        ),
+                        ..default()
+                    });
+                })
+                .insert(MenuButton::NewGame);
+
+            menu_node
+                .spawn_bundle(ButtonBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: Rect::all(Val::Px(10.0)),
+                        ..default()
+                    },
+                    color: BUTTON_COLOR.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle {
+                        text: Text::with_section(
+                            EXIT_BUTTON_LABEL,
+                            TextStyle {
+                                font: font.clone(),
+                                font_size: font_size,
+                                color: Color::WHITE,
+                            },
+                            Default::default(),
+                        ),
+                        ..default()
+                    });
+                })
+                .insert(MenuButton::Exit);
+        });
+}
+
+fn hide_menu(mut commands: Commands, menu: Query<Entity, With<MainMenu>>) {
+    let menu = menu.get_single().expect("Could not hide the menu");
+    commands.entity(menu).despawn_recursive();
+}
+
+fn game_setup(
+    mut commands: Commands,
+    game_object_query: Query<Entity, With<GameObject>>,
+    mut app_state: ResMut<State<AppState>>,
+    world: Res<World>,
+) {
+    for object in game_object_query.iter() {
+        commands.entity(object).despawn();
+    }
+
+    spawn_objects(&mut commands);
+    spawn_player_and_and_goal(&mut commands, world);
+
+    app_state
+        .set(AppState::InGame)
+        .expect("Tried to enter the game from loading, but failed");
 }
 
 enum ObjectKind {
@@ -498,7 +589,8 @@ fn spawn_object(
 
     commands
         .spawn_bundle(shape_bundle)
-        .insert(Attractable {})
+        .insert(GameObject)
+        .insert(Attractable)
         .insert(RigidBody::Dynamic)
         .insert(collider)
         .insert(ColliderMassProperties::Density(density_value))
@@ -595,83 +687,108 @@ fn circle_props(
     (shape_bundle, collider, 1.0)
 }
 
-fn ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 24.0;
-
-    commands.spawn_bundle(UiCameraBundle::default());
-
-    commands
-        .spawn_bundle(ButtonBundle {
-            style: Style {
-                size: Size::new(Val::Px(120.0), Val::Px(36.0)),
-                position: Rect {
-                    top: Val::Px(10.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            color: BUTTON_COLOR.into(),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(TextBundle {
-                text: Text::with_section(
-                    EXIT_BUTTON_LABEL,
-                    TextStyle {
-                        font: font.clone(),
-                        font_size: font_size,
-                        color: Color::WHITE,
-                    },
-                    Default::default(),
-                ),
-                ..default()
-            });
-        })
-        .insert(ExitButton);
-
-    let auto_cycle_button_color = if GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT {
-        BUTTON_ACTIVE_COLOR
-    } else {
-        BUTTON_COLOR
-    };
+fn spawn_player_and_and_goal(commands: &mut Commands, world: Res<World>) {
+    // Flag (goal)
+    let flag_extent_x = FLAG_WIDTH_METERS * PIXELS_PER_METER;
+    let flag_extent_y = FLAG_HEIGHT_METERS * PIXELS_PER_METER;
+    // a point somewhere along the inner edge of the world (the ground)
+    let flag_anchor = world
+        .vertices_inner_edge
+        .iter()
+        .choose(&mut thread_rng())
+        .unwrap_or(&Vec2::ZERO);
+    let flag_transform = stand_upright_at_anchor(&flag_anchor, flag_extent_y);
 
     commands
-        .spawn_bundle(ButtonBundle {
-            style: Style {
-                size: Size::new(Val::Px(190.0), Val::Px(36.0)),
-                position: Rect {
-                    top: Val::Px(10.0),
-                    left: Val::Px(140.0),
-                    ..default()
-                },
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
+        .spawn_bundle(GeometryBuilder::build_as(
+            &shapes::Rectangle {
+                extents: Vec2::new(flag_extent_x, flag_extent_y),
+                origin: RectangleOrigin::Center,
             },
-            color: auto_cycle_button_color.into(),
-            ..default()
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::ORANGE)),
+            flag_transform,
+        ))
+        .insert(GameObject)
+        .insert(Flag)
+        .insert(RigidBody::Fixed)
+        .insert(Collider::cuboid(flag_extent_x / 2.0, flag_extent_y / 2.0));
+
+    // "Player"
+    let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
+    let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
+    let min_player_distance_from_flag = WORLD_RADIUS_METERS * PIXELS_PER_METER * 1.8;
+    let fallback_anchor = &Vec2::new(0.0, WORLD_RADIUS_METERS * PIXELS_PER_METER * -0.5);
+    let player_anchor = world
+        .vertices_inner_edge
+        .iter()
+        .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
+        .unwrap_or(fallback_anchor);
+    let player_transform = stand_upright_at_anchor(&player_anchor, player_extent_y);
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            &shapes::Rectangle {
+                extents: Vec2::new(player_extent_x, player_extent_y),
+                origin: RectangleOrigin::Center,
+            },
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::YELLOW)),
+            player_transform,
+        ))
+        .insert(GameObject)
+        .insert(Attractable)
+        .insert(Player)
+        .insert(RigidBody::Dynamic)
+        .insert(Collider::cuboid(
+            player_extent_x / 2.0,
+            player_extent_y / 2.0,
+        ))
+        .insert(MassProperties {
+            local_center_of_mass: Vec2::new(0.0, -player_extent_y),
+            mass: 100.0,
+            principal_inertia: 0.2,
         })
-        .with_children(|parent| {
-            parent.spawn_bundle(TextBundle {
-                text: Text::with_section(
-                    AUTO_CYCLE_BUTTON_LABEL,
-                    TextStyle {
-                        font: font.clone(),
-                        font_size: font_size,
-                        color: Color::WHITE,
-                    },
-                    Default::default(),
-                ),
-                ..default()
-            });
+        .insert(Restitution::coefficient(0.1))
+        .insert(GravityScale(0.0))
+        .insert(ExternalForce {
+            force: Vec2::ZERO,
+            torque: 0.0,
         })
-        .insert(AutoCycleButton);
+        .insert(Velocity {
+            linvel: Vec2::ZERO,
+            angvel: 0.0,
+        });
+}
+
+fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
+    let dir_to_gravity_force = -anchor.normalize();
+    let angle_to_gravity_force = dir_to_gravity_force.y.atan2(dir_to_gravity_force.x);
+    // move the anchor towards the gravity force by half it's height to make it stick from the ground
+    let anchor_aligned_with_ground = *anchor + (dir_to_gravity_force * object_height * 0.5);
+
+    Transform::from_translation(Vec3::new(
+        anchor_aligned_with_ground.x,
+        anchor_aligned_with_ground.y,
+        0.0,
+    ))
+    // the extra angle aligns positive Y (the top of the flag pole) with the gravity force
+    .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
+}
+
+// Common systems
+
+fn main_controls(
+    mut keyboard_input: ResMut<Input<KeyCode>>,
+    mut app_state: ResMut<State<AppState>>,
+) {
+    if keyboard_input.just_released(KeyCode::Escape) {
+        if app_state.current() != &AppState::InMenu {
+            app_state
+                .set(AppState::InMenu)
+                .expect("Could show the main menu");
+
+            keyboard_input.reset(KeyCode::Escape);
+        }
+    }
 }
 
 // Simulation systems
@@ -713,48 +830,6 @@ fn update_gravity(
     }
 }
 
-fn update_player_velocity(
-    mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
-    keyboard_input: Res<Input<KeyCode>>,
-    timer: Res<Time>,
-) {
-    let (mut vel, transform) = velocities.single_mut();
-
-    let forward = transform.local_x();
-    let forward_dir = Vec2::new(forward.x, forward.y);
-    let current_velocity = (vel.linvel * forward_dir).length();
-    let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
-    let intensity = if keyboard_input.pressed(KeyCode::Left) && negative_velocity == 0.0 {
-        // Slow down until the player halts
-        PLAYER_SLOW_DOWN_VELOCITY
-    } else if keyboard_input.pressed(KeyCode::Right)
-        && current_velocity < PLAYER_MAX_FORWARD_VELOCITY
-    {
-        // Accelerate in the forward direction
-        PLAYER_MAX_FORWARD_VELOCITY
-    } else {
-        0.0
-    };
-    let player_control_force = forward_dir * intensity;
-
-    let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
-    let dir_from_gravity_source = translation_2d.normalize();
-    let dot = forward_dir.dot(dir_from_gravity_source);
-    // maintain a right angle between player movement direction and gravity source direction
-    // TODO: slow down when close to the target (0 dot product)
-    let angular_velocity = if dot > 0.05 {
-        PLAYER_MAX_ANGULAR_VELOCITY
-    } else if dot < -0.05 {
-        -PLAYER_MAX_ANGULAR_VELOCITY
-    } else {
-        0.0
-    };
-
-    vel.linvel += player_control_force * timer.delta_seconds();
-    vel.angvel = (angular_velocity * timer.delta_seconds())
-        .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
-}
-
 fn apply_forces(
     mut ext_forces: Query<(&mut ExternalForce, &Transform), With<Attractable>>,
     gravity_source: ResMut<GravitySource>,
@@ -769,19 +844,52 @@ fn apply_forces(
     }
 }
 
-// Input systems
+// Player systems
 
-fn keyboard_input_effects(
+fn update_player_velocity(
+    mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
     keyboard_input: Res<Input<KeyCode>>,
-    mut exit: EventWriter<AppExit>,
-    mut gravity_source: ResMut<GravitySource>,
+    timer: Res<Time>,
 ) {
-    if keyboard_input.just_released(KeyCode::Escape) {
-        exit.send(AppExit);
-    }
+    match velocities.get_single_mut() {
+        Err(_) => {
+            // The player has not been spawned yet (or the level might be changing)
+        }
+        Ok((mut vel, transform)) => {
+            let forward = transform.local_x();
+            let forward_dir = Vec2::new(forward.x, forward.y);
+            let current_velocity = (vel.linvel * forward_dir).length();
+            let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
+            let intensity = if keyboard_input.pressed(KeyCode::Left) && negative_velocity == 0.0 {
+                // Slow down until the player halts
+                PLAYER_SLOW_DOWN_VELOCITY
+            } else if keyboard_input.pressed(KeyCode::Right)
+                && current_velocity < PLAYER_MAX_FORWARD_VELOCITY
+            {
+                // Accelerate in the forward direction
+                PLAYER_MAX_FORWARD_VELOCITY
+            } else {
+                0.0
+            };
+            let player_control_force = forward_dir * intensity;
 
-    if keyboard_input.just_released(KeyCode::G) {
-        gravity_source.auto_cycle = !gravity_source.auto_cycle;
+            let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
+            let dir_from_gravity_source = translation_2d.normalize();
+            let dot = forward_dir.dot(dir_from_gravity_source);
+            // maintain a right angle between player movement direction and gravity source direction
+            // TODO: slow down when close to the target (0 dot product)
+            let angular_velocity = if dot > 0.05 {
+                PLAYER_MAX_ANGULAR_VELOCITY
+            } else if dot < -0.05 {
+                -PLAYER_MAX_ANGULAR_VELOCITY
+            } else {
+                0.0
+            };
+
+            vel.linvel += player_control_force * timer.delta_seconds();
+            vel.angvel = (angular_velocity * timer.delta_seconds())
+                .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
+        }
     }
 }
 
@@ -810,26 +918,28 @@ fn player_text_update(
     velocity_query: Query<&Velocity, With<Player>>,
     mut text_query: Query<&mut Text, With<PlayerText>>,
 ) {
-    let velocity = velocity_query.single();
-    let mut text = text_query.single_mut();
+    match velocity_query.get_single() {
+        Err(_) => {}
+        Ok(velocity) => {
+            let mut text = text_query.single_mut();
 
-    text.sections[1].value = format!(
-        "[{:6.1},{:6.1}] / {:4.1}",
-        velocity.linvel.x, velocity.linvel.y, velocity.angvel
-    );
+            text.sections[1].value = format!(
+                "[{:6.1},{:6.1}] / {:4.1}",
+                velocity.linvel.x, velocity.linvel.y, velocity.angvel
+            );
+        }
+    }
 }
 
-fn exit_button_event(
+fn menu_button_state(
     mut interaction_query: Query<
         (&Interaction, &mut UiColor),
-        (Changed<Interaction>, With<ExitButton>),
+        (Changed<Interaction>, With<MenuButton>),
     >,
-    mut exit: EventWriter<AppExit>,
 ) {
     for (interaction, mut color) in interaction_query.iter_mut() {
         match *interaction {
             Interaction::Clicked => {
-                exit.send(AppExit);
                 *color = BUTTON_ACTIVE_COLOR.into();
             }
             Interaction::Hovered => {
@@ -842,35 +952,28 @@ fn exit_button_event(
     }
 }
 
-fn auto_cycle_button_event(
-    mut interaction_query: Query<
-        (&Interaction, &mut UiColor),
-        (Changed<Interaction>, With<AutoCycleButton>),
-    >,
+fn menu_button_event(
+    interaction_query: Query<(&Interaction, &MenuButton), (Changed<Interaction>, With<Button>)>,
+    mut app_state: ResMut<State<AppState>>,
     mut gravity_source: ResMut<GravitySource>,
+    mut exit: EventWriter<AppExit>,
 ) {
-    for (interaction, mut color) in interaction_query.iter_mut() {
-        let color_at_rest = if gravity_source.auto_cycle {
-            BUTTON_ACTIVE_COLOR
-        } else {
-            BUTTON_COLOR
-        };
-
+    for (interaction, button) in interaction_query.iter() {
         match *interaction {
-            Interaction::Clicked => {
-                *color = color_at_rest.into();
-                gravity_source.auto_cycle = !gravity_source.auto_cycle;
-            }
-            Interaction::Hovered => {
-                *color = if gravity_source.auto_cycle {
-                    BUTTON_ACTIVE_COLOR.into()
-                } else {
-                    BUTTON_COLOR_HOVER.into()
-                };
-            }
-            Interaction::None => {
-                *color = color_at_rest.into();
-            }
+            Interaction::Clicked => match button {
+                MenuButton::NewGame => app_state
+                    .set(AppState::LoadingLevel)
+                    .expect("Could not start the game"),
+                MenuButton::Exit => exit.send(AppExit),
+                MenuButton::SimulationMode => {
+                    app_state
+                        .set(AppState::ObserveSimulation)
+                        .expect("Could not start the observe simulation mode");
+                    gravity_source.auto_cycle = true;
+                }
+            },
+
+            _ => (),
         }
     }
 }
