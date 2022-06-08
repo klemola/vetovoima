@@ -113,7 +113,7 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(WindowDescriptor {
-            title: "Vetovoima".to_string(),
+            title: APP_NAME.into(),
             mode: WindowMode::Fullscreen,
             ..default()
         })
@@ -144,7 +144,8 @@ fn main() {
             SystemSet::on_update(AppState::InGame)
                 .with_system(update_gravity)
                 .with_system(apply_forces)
-                .with_system(update_player_velocity),
+                .with_system(update_player_velocity)
+                .with_system(check_goal_reached),
         )
         .add_system(main_controls)
         .run();
@@ -890,6 +891,40 @@ fn update_player_velocity(
             vel.angvel = (angular_velocity * timer.delta_seconds())
                 .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
         }
+    }
+}
+
+fn check_goal_reached(
+    player_query: Query<(&Transform, &Collider), With<Player>>,
+    flag_query: Query<Entity, With<Flag>>,
+    mut app_state: ResMut<State<AppState>>,
+    rapier_context: Res<RapierContext>,
+) {
+    match (player_query.get_single(), flag_query.get_single()) {
+        (Ok((player_transform, player_shape)), Ok(flag_entity)) => {
+            let shape_pos: Vec2 = Vec2::new(
+                player_transform.translation.x,
+                player_transform.translation.y,
+            );
+            let (_, player_angle) = player_transform.rotation.to_axis_angle();
+            let groups = InteractionGroups::all();
+            let flag_id = flag_entity.id();
+
+            rapier_context.intersections_with_shape(
+                shape_pos,
+                player_angle,
+                player_shape,
+                groups,
+                Some(&|entity: Entity| entity.id() == flag_id),
+                |_| {
+                    app_state
+                        .set(AppState::LoadingLevel)
+                        .expect("Could not change the level upon reaching the goal");
+                    true
+                },
+            );
+        }
+        _ => (),
     }
 }
 
