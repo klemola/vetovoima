@@ -107,6 +107,9 @@ const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 
+const BASE_OBJECTS_AMOUNT: i32 = 16;
+const MAX_OBJECTS_AMOUNT: i32 = 60;
+
 const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
 const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
 const BUTTON_ACTIVE_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
@@ -479,18 +482,18 @@ fn game_setup(
         commands.entity(object).despawn();
     }
 
-    let current_game_level_value = match game_level {
+    let current_game_level_n = match game_level {
         Some(level) => level.n,
         None => 0,
     };
 
-    let next_game_level = create_game_level(current_game_level_value);
+    let next_game_level = create_game_level(current_game_level_n);
 
     // Will replace the current world with the next
     commands.insert_resource(next_game_level.clone());
 
     spawn_world(&mut commands, &next_game_level);
-    spawn_objects(&mut commands);
+    spawn_objects(&mut commands, current_game_level_n);
     spawn_player_and_and_goal(&mut commands, &next_game_level);
 
     *gravity_source = GravitySource::default();
@@ -630,11 +633,12 @@ impl Distribution<ObjectDensity> for Standard {
     }
 }
 
-fn spawn_objects(commands: &mut Commands) {
-    let max_objects = 16;
+fn spawn_objects(commands: &mut Commands, current_game_level_n: i32) {
+    let difficulty_bonus = 2 * current_game_level_n;
+    let objects_amount = (BASE_OBJECTS_AMOUNT + difficulty_bonus).min(MAX_OBJECTS_AMOUNT);
     let full_turn_radians = 2.0 * PI;
 
-    for n in 1..=max_objects {
+    for n in 1..=objects_amount {
         let object_kind: ObjectKind = rand::random();
         let object_density: ObjectDensity = rand::random();
         let range = match object_density {
@@ -644,7 +648,7 @@ fn spawn_objects(commands: &mut Commands) {
         };
         let distance_from_center_meters: f32 = thread_rng().gen_range(range) * WORLD_RADIUS_METERS;
         let base_x = distance_from_center_meters * PIXELS_PER_METER;
-        let angle = (full_turn_radians / max_objects as f32) * n as f32;
+        let angle = (full_turn_radians / objects_amount as f32) * n as f32;
         let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, 0.0));
 
         transform.rotate_around(Vec3::ZERO, Quat::from_rotation_z(angle));
