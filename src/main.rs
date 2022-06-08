@@ -29,10 +29,11 @@ enum MenuButton {
     SimulationMode,
 }
 
-#[derive(Component)]
-struct World {
-    vertices: Vec<Vec2>,
-    vertices_inner_edge: Vec<Vec2>,
+#[derive(Component, Clone, Debug)]
+struct GameLevel {
+    n: i32,
+    terrain_vertices: Vec<Vec2>,
+    elevation_vertices: Vec<Vec2>,
 }
 
 #[derive(Component)]
@@ -45,6 +46,16 @@ struct GravitySource {
 enum Attraction {
     Positive,
     Negative,
+}
+
+impl Default for GravitySource {
+    fn default() -> Self {
+        Self {
+            force: INITIAL_GRAVITY_FORCE,
+            cycle: Attraction::Negative,
+            auto_cycle: GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -72,6 +83,9 @@ struct GravityText;
 
 #[derive(Component)]
 struct PlayerText;
+
+#[derive(Component)]
+struct LevelText;
 
 // Config
 
@@ -107,8 +121,6 @@ fn main() {
         INITIAL_GRAVITY_FORCE <= MAX_GRAVITY_FORCE && INITIAL_GRAVITY_FORCE >= MIN_GRAVITY_FORCE
     );
 
-    let world: World = create_world();
-
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(Color::BLACK))
@@ -117,12 +129,7 @@ fn main() {
             mode: WindowMode::Fullscreen,
             ..default()
         })
-        .insert_resource(world)
-        .insert_resource(GravitySource {
-            force: INITIAL_GRAVITY_FORCE,
-            cycle: Attraction::Negative,
-            auto_cycle: GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT,
-        })
+        .insert_resource(GravitySource::default())
         .add_state(AppState::InMenu)
         .add_plugins(DefaultPlugins)
         .add_plugins(DevTools)
@@ -140,6 +147,7 @@ fn main() {
         )
         .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu))
         .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
+        .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(game_ui_setup))
         .add_system_set(
             SystemSet::on_update(AppState::InGame)
                 .with_system(update_gravity)
@@ -151,12 +159,12 @@ fn main() {
         .run();
 }
 
-fn create_world() -> World {
+fn create_game_level(current_level_value: i32) -> GameLevel {
     // World (the hollow circle that bounds the simulation)
     let radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
-    // the outer edge of the circle polygon
+    // the outer edge (rim) of the circle polygon
     let outer_circle_steps = 180;
-    let vertices_outer: Vec<Vec2> = (0..=outer_circle_steps)
+    let rim_vertices: Vec<Vec2> = (0..=outer_circle_steps)
         .map(|step: i32| {
             let step_multiplier = 360 / outer_circle_steps;
             let a = (step * step_multiplier) as f32;
@@ -168,9 +176,9 @@ fn create_world() -> World {
             Vec2::new(x, y)
         })
         .collect();
-    // the inner edge of the circle polygon (with some variation)
+    // the inner edge of the circle polygon (the elevation)
     let inner_circle_steps = 180;
-    let vertices_inner_edge: Vec<Vec2> = (0..=inner_circle_steps)
+    let elevation_vertices: Vec<Vec2> = (0..=inner_circle_steps)
         .map(|step: i32| {
             let mean = 1.6 * PIXELS_PER_METER;
             let variation = if step > 0 && step < inner_circle_steps {
@@ -191,9 +199,10 @@ fn create_world() -> World {
         })
         .collect();
 
-    World {
-        vertices: vec![vertices_inner_edge.clone(), vertices_outer.clone()].concat(),
-        vertices_inner_edge,
+    GameLevel {
+        n: current_level_value + 1,
+        terrain_vertices: vec![elevation_vertices.clone(), rim_vertices.clone()].concat(),
+        elevation_vertices,
     }
 }
 
@@ -342,38 +351,8 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(PlayerText);
 }
 
-fn simulation_setup(mut commands: Commands, world: Res<World>) {
+fn simulation_setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-
-    let world_shape = &shapes::Polygon {
-        points: world.vertices.clone(),
-        closed: true,
-    };
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            world_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
-            Transform::default(),
-        ))
-        .insert(Collider::polyline(world.vertices_inner_edge.clone(), None));
-
-    // Gravity source (as a world object)
-    let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
-    let gravity_source_shape = shapes::Circle {
-        radius: gravity_source_radius_pixels,
-        center: Vec2::ZERO,
-    };
-
-    commands
-        .spawn_bundle(GeometryBuilder::build_as(
-            &gravity_source_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
-            Transform::default(),
-        ))
-        .insert(RigidBody::Fixed)
-        .insert(Collider::ball(gravity_source_radius_pixels))
-        .insert(Restitution::coefficient(0.1));
 }
 
 fn ui_setup(mut commands: Commands) {
@@ -493,18 +472,122 @@ fn game_setup(
     mut commands: Commands,
     game_object_query: Query<Entity, With<GameObject>>,
     mut app_state: ResMut<State<AppState>>,
-    world: Res<World>,
+    game_level: Option<Res<GameLevel>>,
+    mut gravity_source: ResMut<GravitySource>,
 ) {
     for object in game_object_query.iter() {
         commands.entity(object).despawn();
     }
 
+    let current_game_level_value = match game_level {
+        Some(level) => level.n,
+        None => 0,
+    };
+
+    let next_game_level = create_game_level(current_game_level_value);
+
+    // Will replace the current world with the next
+    commands.insert_resource(next_game_level.clone());
+
+    spawn_world(&mut commands, &next_game_level);
     spawn_objects(&mut commands);
-    spawn_player_and_and_goal(&mut commands, world);
+    spawn_player_and_and_goal(&mut commands, &next_game_level);
+
+    *gravity_source = GravitySource::default();
 
     app_state
         .set(AppState::InGame)
         .expect("Tried to enter the game from loading, but failed");
+}
+
+fn spawn_world(commands: &mut Commands, world: &GameLevel) {
+    let world_shape = &shapes::Polygon {
+        points: world.terrain_vertices.clone(),
+        closed: true,
+    };
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            world_shape,
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
+            Transform::default(),
+        ))
+        .insert(GameObject)
+        .insert(Collider::polyline(world.elevation_vertices.clone(), None));
+
+    // Gravity source (as a world object)
+    let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
+    let gravity_source_shape = shapes::Circle {
+        radius: gravity_source_radius_pixels,
+        center: Vec2::ZERO,
+    };
+
+    commands
+        .spawn_bundle(GeometryBuilder::build_as(
+            &gravity_source_shape,
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
+            Transform::default(),
+        ))
+        .insert(GameObject)
+        .insert(RigidBody::Fixed)
+        .insert(Collider::ball(gravity_source_radius_pixels))
+        .insert(Restitution::coefficient(0.1));
+}
+
+fn game_ui_setup(
+    mut commands: Commands,
+    text_query: Query<Entity, With<LevelText>>,
+    asset_server: Res<AssetServer>,
+    game_level: Option<Res<GameLevel>>,
+) {
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 24.0;
+
+    match text_query.get_single() {
+        Ok(text) => commands.entity(text).despawn(),
+        Err(_) => (),
+    };
+
+    match game_level {
+        None => (),
+        Some(level) => {
+            commands
+                .spawn_bundle(TextBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        position: Rect {
+                            bottom: Val::Px(10.0),
+                            left: Val::Px(10.0),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    text: Text {
+                        sections: vec![
+                            TextSection {
+                                value: "Level ".to_string(),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::WHITE,
+                                },
+                            },
+                            TextSection {
+                                value: format!("{}", level.n),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::YELLOW,
+                                },
+                            },
+                        ],
+                        ..default()
+                    },
+                    ..default()
+                })
+                .insert(LevelText);
+        }
+    };
 }
 
 enum ObjectKind {
@@ -688,13 +771,13 @@ fn circle_props(
     (shape_bundle, collider, 1.0)
 }
 
-fn spawn_player_and_and_goal(commands: &mut Commands, world: Res<World>) {
+fn spawn_player_and_and_goal(commands: &mut Commands, world: &GameLevel) {
     // Flag (goal)
     let flag_extent_x = FLAG_WIDTH_METERS * PIXELS_PER_METER;
     let flag_extent_y = FLAG_HEIGHT_METERS * PIXELS_PER_METER;
     // a point somewhere along the inner edge of the world (the ground)
     let flag_anchor = world
-        .vertices_inner_edge
+        .elevation_vertices
         .iter()
         .choose(&mut thread_rng())
         .unwrap_or(&Vec2::ZERO);
@@ -720,7 +803,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, world: Res<World>) {
     let min_player_distance_from_flag = WORLD_RADIUS_METERS * PIXELS_PER_METER * 1.8;
     let fallback_anchor = &Vec2::new(0.0, WORLD_RADIUS_METERS * PIXELS_PER_METER * -0.5);
     let player_anchor = world
-        .vertices_inner_edge
+        .elevation_vertices
         .iter()
         .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
         .unwrap_or(fallback_anchor);
