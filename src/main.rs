@@ -17,6 +17,7 @@ use bevy_rapier2d::prelude::*;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum AppState {
     InMenu,
+    InitGame,
     LoadingLevel,
     InGame,
     GameOver,
@@ -175,6 +176,7 @@ fn main() {
                 .with_system(menu_button_event),
         )
         .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu))
+        .add_system_set(SystemSet::on_enter(AppState::InitGame).with_system(clear_game_progress))
         .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
         .add_system_set(
             SystemSet::on_enter(AppState::InGame)
@@ -516,6 +518,13 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn hide_menu(mut commands: Commands, menu: Query<Entity, With<MainMenu>>) {
     let menu = menu.get_single().expect("Could not hide the menu");
     commands.entity(menu).despawn_recursive();
+}
+
+fn clear_game_progress(mut commands: Commands, mut app_state: ResMut<State<AppState>>) {
+    commands.remove_resource::<GameLevel>();
+    app_state
+        .set(AppState::LoadingLevel)
+        .expect("Tried to load the first level, but failed");
 }
 
 fn game_cleanup(mut commands: Commands, game_object_query: Query<Entity, With<GameObject>>) {
@@ -1265,7 +1274,7 @@ fn menu_button_event(
         match *interaction {
             Interaction::Clicked => match button {
                 MenuButton::NewGame => app_state
-                    .set(AppState::LoadingLevel)
+                    .set(AppState::InitGame)
                     .expect("Could not start the game"),
                 MenuButton::Exit => exit.send(AppExit),
                 MenuButton::SimulationMode => {
