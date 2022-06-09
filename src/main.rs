@@ -72,6 +72,9 @@ struct Player;
 #[derive(Component)]
 struct Flag;
 
+#[derive(Component)]
+struct GameOverScreen(Timer);
+
 // UI tag components
 
 #[derive(Component)]
@@ -91,6 +94,9 @@ struct GameUIText;
 
 #[derive(Component)]
 struct GameOverCountdownText;
+
+#[derive(Component)]
+struct GameOverTitle;
 
 // Config
 //
@@ -116,10 +122,11 @@ const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 
-// config -> Game level
-const COUNTDOWN_TO_GAME_OVER_SECONDS: u64 = 30;
+// config -> Game level & game over screen
 const BASE_OBJECTS_AMOUNT: i32 = 16;
 const MAX_OBJECTS_AMOUNT: i32 = 60;
+const COUNTDOWN_TO_GAME_OVER_SECONDS: u64 = 30;
+const GAME_OVER_SCREEN_SHOW_DURATION_SECONDS: u64 = 5;
 
 // config -> UI
 const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
@@ -156,6 +163,7 @@ fn main() {
             PIXELS_PER_METER,
         ))
         .add_startup_system(app_setup)
+        .add_system(main_controls)
         .add_system_set(
             SystemSet::on_enter(AppState::InMenu)
                 .with_system(show_menu)
@@ -182,7 +190,16 @@ fn main() {
                 .with_system(update_game_over_countdown)
                 .with_system(countdown_text_update),
         )
-        .add_system(main_controls)
+        .add_system_set(
+            SystemSet::on_exit(AppState::InGame)
+                .with_system(game_cleanup)
+                .with_system(game_ui_cleanup),
+        )
+        .add_system_set(SystemSet::on_enter(AppState::GameOver).with_system(gameover_screen_setup))
+        .add_system_set(
+            SystemSet::on_update(AppState::GameOver).with_system(gameover_screen_update),
+        )
+        .add_system_set(SystemSet::on_exit(AppState::GameOver).with_system(gameover_screen_cleanup))
         .run();
 }
 
@@ -501,17 +518,18 @@ fn hide_menu(mut commands: Commands, menu: Query<Entity, With<MainMenu>>) {
     commands.entity(menu).despawn_recursive();
 }
 
+fn game_cleanup(mut commands: Commands, game_object_query: Query<Entity, With<GameObject>>) {
+    for object in game_object_query.iter() {
+        commands.entity(object).despawn();
+    }
+}
+
 fn game_setup(
     mut commands: Commands,
-    game_object_query: Query<Entity, With<GameObject>>,
     mut app_state: ResMut<State<AppState>>,
     game_level: Option<Res<GameLevel>>,
     mut gravity_source: ResMut<GravitySource>,
 ) {
-    for object in game_object_query.iter() {
-        commands.entity(object).despawn();
-    }
-
     let current_game_level_n = match game_level {
         Some(level) => level.n,
         None => 0,
@@ -570,18 +588,19 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         .insert(Restitution::coefficient(0.1));
 }
 
+fn game_ui_cleanup(mut commands: Commands, text_query: Query<Entity, With<GameUIText>>) {
+    for text in text_query.iter() {
+        commands.entity(text).despawn();
+    }
+}
+
 fn game_ui_setup(
     mut commands: Commands,
-    text_query: Query<Entity, With<GameUIText>>,
     asset_server: Res<AssetServer>,
     game_level: Option<Res<GameLevel>>,
 ) {
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 24.0;
-
-    for object in text_query.iter() {
-        commands.entity(object).despawn();
-    }
 
     match game_level {
         None => (),
@@ -1104,6 +1123,77 @@ fn cursor_visible<const VISIBILITY: bool>(mut windows: ResMut<Windows>) {
     let window = windows.get_primary_mut().unwrap();
 
     window.set_cursor_visibility(VISIBILITY);
+}
+
+// Game over screen systems
+
+fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(GameOverScreen(Timer::new(
+        Duration::from_secs(GAME_OVER_SCREEN_SHOW_DURATION_SECONDS),
+        false,
+    )));
+
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 100.0;
+
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: Color::BLACK.into(),
+            ..default()
+        })
+        .with_children(|container| {
+            container.spawn_bundle(TextBundle {
+                style: Style {
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                text: Text::with_section(
+                    "GAME OVER",
+                    TextStyle {
+                        font,
+                        font_size,
+                        color: Color::RED,
+                    },
+                    TextAlignment {
+                        horizontal: HorizontalAlign::Center,
+                        ..default()
+                    },
+                ),
+                ..default()
+            });
+        })
+        .insert(GameOverTitle);
+}
+
+fn gameover_screen_cleanup(
+    mut commands: Commands,
+    title_query: Query<Entity, With<GameOverTitle>>,
+) {
+    commands.remove_resource::<GameOverScreen>();
+
+    for object in title_query.iter() {
+        commands.entity(object).despawn_recursive();
+    }
+}
+
+fn gameover_screen_update(
+    mut game_over_screen: ResMut<GameOverScreen>,
+    mut app_state: ResMut<State<AppState>>,
+    time: Res<Time>,
+) {
+    game_over_screen.0.tick(time.delta());
+
+    if game_over_screen.0.finished() {
+        app_state
+            .set(AppState::InMenu)
+            .expect("Could not transition to the menu");
+    }
 }
 
 // UI systems
