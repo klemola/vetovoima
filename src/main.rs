@@ -90,12 +90,12 @@ struct LevelText;
 // Config
 
 const PIXELS_PER_METER: f32 = 16.0;
-const WORLD_RADIUS_METERS: f32 = 28.0;
+const LEVEL_BOUNDS_RADIUS_METERS: f32 = 28.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
 const FLAG_WIDTH_METERS: f32 = 0.5;
-const FLAG_HEIGHT_METERS: f32 = WORLD_RADIUS_METERS / 5.0;
+const FLAG_HEIGHT_METERS: f32 = LEVEL_BOUNDS_RADIUS_METERS / 5.0;
 
 const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
@@ -163,8 +163,7 @@ fn main() {
 }
 
 fn create_game_level(current_level_value: i32) -> GameLevel {
-    // World (the hollow circle that bounds the simulation)
-    let radius_pixels = WORLD_RADIUS_METERS * PIXELS_PER_METER;
+    let radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
     // the outer edge (rim) of the circle polygon
     let outer_circle_steps = 180;
     let rim_vertices: Vec<Vec2> = (0..=outer_circle_steps)
@@ -489,10 +488,10 @@ fn game_setup(
 
     let next_game_level = create_game_level(current_game_level_n);
 
-    // Will replace the current world with the next
+    // Will replace the current game level with the next
     commands.insert_resource(next_game_level.clone());
 
-    spawn_world(&mut commands, &next_game_level);
+    spawn_level(&mut commands, &next_game_level);
     spawn_objects(&mut commands, current_game_level_n);
     spawn_player_and_and_goal(&mut commands, &next_game_level);
 
@@ -503,22 +502,25 @@ fn game_setup(
         .expect("Tried to enter the game from loading, but failed");
 }
 
-fn spawn_world(commands: &mut Commands, world: &GameLevel) {
-    let world_shape = &shapes::Polygon {
-        points: world.terrain_vertices.clone(),
+fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
+    let level_shape = &shapes::Polygon {
+        points: game_level.terrain_vertices.clone(),
         closed: true,
     };
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
-            world_shape,
+            level_shape,
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
             Transform::default(),
         ))
         .insert(GameObject)
-        .insert(Collider::polyline(world.elevation_vertices.clone(), None));
+        .insert(Collider::polyline(
+            game_level.elevation_vertices.clone(),
+            None,
+        ));
 
-    // Gravity source (as a world object)
+    // Gravity source (as a visual/physics object)
     let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
     let gravity_source_shape = shapes::Circle {
         radius: gravity_source_radius_pixels,
@@ -646,7 +648,8 @@ fn spawn_objects(commands: &mut Commands, current_game_level_n: i32) {
             ObjectDensity::Medium => 0.4..=0.6,
             ObjectDensity::Heavy => 0.8..=0.8,
         };
-        let distance_from_center_meters: f32 = thread_rng().gen_range(range) * WORLD_RADIUS_METERS;
+        let distance_from_center_meters: f32 =
+            thread_rng().gen_range(range) * LEVEL_BOUNDS_RADIUS_METERS;
         let base_x = distance_from_center_meters * PIXELS_PER_METER;
         let angle = (full_turn_radians / objects_amount as f32) * n as f32;
         let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, 0.0));
@@ -775,12 +778,12 @@ fn circle_props(
     (shape_bundle, collider, 1.0)
 }
 
-fn spawn_player_and_and_goal(commands: &mut Commands, world: &GameLevel) {
+fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     // Flag (goal)
     let flag_extent_x = FLAG_WIDTH_METERS * PIXELS_PER_METER;
     let flag_extent_y = FLAG_HEIGHT_METERS * PIXELS_PER_METER;
-    // a point somewhere along the inner edge of the world (the ground)
-    let flag_anchor = world
+    // a point somewhere along the terrain (the inner edge of the level)
+    let flag_anchor = game_level
         .elevation_vertices
         .iter()
         .choose(&mut thread_rng())
@@ -805,9 +808,9 @@ fn spawn_player_and_and_goal(commands: &mut Commands, world: &GameLevel) {
     // "Player"
     let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
     let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
-    let min_player_distance_from_flag = WORLD_RADIUS_METERS * PIXELS_PER_METER * 1.8;
-    let fallback_anchor = &Vec2::new(0.0, WORLD_RADIUS_METERS * PIXELS_PER_METER * -0.5);
-    let player_anchor = world
+    let min_player_distance_from_flag = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER * 1.8;
+    let fallback_anchor = &Vec2::new(0.0, LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER * -0.5);
+    let player_anchor = game_level
         .elevation_vertices
         .iter()
         .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
