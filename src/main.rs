@@ -94,8 +94,8 @@ const WORLD_RADIUS_METERS: f32 = 28.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const PLAYER_WIDTH_METERS: f32 = 0.8;
 const PLAYER_HEIGHT_METERS: f32 = 1.8;
-const FLAG_WIDTH_METERS: f32 = 0.4;
-const FLAG_HEIGHT_METERS: f32 = 3.0;
+const FLAG_WIDTH_METERS: f32 = 0.5;
+const FLAG_HEIGHT_METERS: f32 = WORLD_RADIUS_METERS / 5.0;
 
 const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
@@ -799,7 +799,8 @@ fn spawn_player_and_and_goal(commands: &mut Commands, world: &GameLevel) {
         .insert(GameObject)
         .insert(Flag)
         .insert(RigidBody::Fixed)
-        .insert(Collider::cuboid(flag_extent_x / 2.0, flag_extent_y / 2.0));
+        .insert(Collider::cuboid(flag_extent_x / 2.0, flag_extent_y / 2.0))
+        .insert(Restitution::coefficient(1.0));
 
     // "Player"
     let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
