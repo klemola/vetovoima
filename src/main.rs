@@ -155,18 +155,24 @@ fn main() {
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             PIXELS_PER_METER,
         ))
-        .add_startup_system(simulation_setup)
-        .add_startup_system(ui_setup)
-        .add_system_set(SystemSet::on_enter(AppState::InMenu).with_system(show_menu))
+        .add_startup_system(app_setup)
+        .add_system_set(
+            SystemSet::on_enter(AppState::InMenu)
+                .with_system(show_menu)
+                .with_system(cursor_visible::<true>),
+        )
         .add_system_set(
             SystemSet::on_update(AppState::InMenu)
                 .with_system(menu_button_state)
-                .with_system(menu_button_event)
-                .with_system(cursor_visible::<true>),
+                .with_system(menu_button_event),
         )
         .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu))
         .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
-        .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(game_ui_setup))
+        .add_system_set(
+            SystemSet::on_enter(AppState::InGame)
+                .with_system(game_ui_setup)
+                .with_system(cursor_visible::<false>),
+        )
         .add_system_set(
             SystemSet::on_update(AppState::InGame)
                 .with_system(update_gravity)
@@ -174,8 +180,7 @@ fn main() {
                 .with_system(update_player_velocity)
                 .with_system(check_goal_reached)
                 .with_system(update_game_over_countdown)
-                .with_system(countdown_text_update)
-                .with_system(cursor_visible::<false>),
+                .with_system(countdown_text_update),
         )
         .add_system(main_controls)
         .run();
@@ -382,11 +387,8 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 // Setup
 //
 
-fn simulation_setup(mut commands: Commands) {
+fn app_setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-}
-
-fn ui_setup(mut commands: Commands) {
     commands.spawn_bundle(UiCameraBundle::default());
 }
 
