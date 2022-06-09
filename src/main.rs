@@ -146,7 +146,8 @@ fn main() {
         .add_system_set(
             SystemSet::on_update(AppState::InMenu)
                 .with_system(menu_button_state)
-                .with_system(menu_button_event),
+                .with_system(menu_button_event)
+                .with_system(cursor_visible::<true>),
         )
         .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu))
         .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
@@ -156,7 +157,8 @@ fn main() {
                 .with_system(update_gravity)
                 .with_system(apply_forces)
                 .with_system(update_player_velocity)
-                .with_system(check_goal_reached),
+                .with_system(check_goal_reached)
+                .with_system(cursor_visible::<false>),
         )
         .add_system(main_controls)
         .run();
@@ -936,7 +938,7 @@ fn apply_forces(
     }
 }
 
-// Player systems
+// In-game systems
 
 fn update_player_velocity(
     mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
@@ -1017,6 +1019,12 @@ fn check_goal_reached(
         }
         _ => (),
     }
+}
+
+fn cursor_visible<const VISIBILITY: bool>(mut windows: ResMut<Windows>) {
+    let window = windows.get_primary_mut().unwrap();
+
+    window.set_cursor_visibility(VISIBILITY);
 }
 
 // UI systems
