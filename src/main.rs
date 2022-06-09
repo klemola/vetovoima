@@ -2,6 +2,7 @@ use rand::{prelude::*, seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Normal, Standard};
 use std::env;
 use std::f32::consts::PI;
+use std::time::Duration;
 
 use bevy::app::{AppExit, PluginGroupBuilder};
 use bevy::{
@@ -32,6 +33,7 @@ enum MenuButton {
 #[derive(Component, Clone, Debug)]
 struct GameLevel {
     n: i32,
+    countdown_to_game_over: Timer,
     terrain_vertices: Vec<Vec2>,
     elevation_vertices: Vec<Vec2>,
 }
@@ -85,10 +87,15 @@ struct GravityText;
 struct PlayerText;
 
 #[derive(Component)]
-struct LevelText;
+struct GameUIText;
+
+#[derive(Component)]
+struct GameOverCountdownText;
 
 // Config
+//
 
+// config -> Dimensions
 const PIXELS_PER_METER: f32 = 16.0;
 const LEVEL_BOUNDS_RADIUS_METERS: f32 = 28.0;
 const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
@@ -97,25 +104,33 @@ const PLAYER_HEIGHT_METERS: f32 = 1.8;
 const FLAG_WIDTH_METERS: f32 = 0.5;
 const FLAG_HEIGHT_METERS: f32 = LEVEL_BOUNDS_RADIUS_METERS / 5.0;
 
+// config -> Player behavior
 const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 
+// config -> Gravity
 const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
 const GRAVITY_FORCE_SCALE: f32 = 12_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 
+// config -> Game level
+const COUNTDOWN_TO_GAME_OVER_SECONDS: u64 = 30;
 const BASE_OBJECTS_AMOUNT: i32 = 16;
 const MAX_OBJECTS_AMOUNT: i32 = 60;
 
+// config -> UI
 const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
 const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
 const BUTTON_ACTIVE_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
 static APP_NAME: &str = "vetovoima";
 static NEW_GAME_BUTTON_LABEL: &str = "New game";
 static EXIT_BUTTON_LABEL: &str = "Exit";
+
+// App init
+//
 
 fn main() {
     assert!(MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE);
@@ -158,6 +173,8 @@ fn main() {
                 .with_system(apply_forces)
                 .with_system(update_player_velocity)
                 .with_system(check_goal_reached)
+                .with_system(update_game_over_countdown)
+                .with_system(countdown_text_update)
                 .with_system(cursor_visible::<false>),
         )
         .add_system(main_controls)
@@ -205,10 +222,17 @@ fn create_game_level(current_level_value: i32) -> GameLevel {
 
     GameLevel {
         n: current_level_value + 1,
+        countdown_to_game_over: Timer::new(
+            Duration::from_secs(COUNTDOWN_TO_GAME_OVER_SECONDS),
+            false,
+        ),
         terrain_vertices: vec![elevation_vertices.clone(), rim_vertices.clone()].concat(),
         elevation_vertices,
     }
 }
+
+// Devtools
+//
 
 struct DebugOutputPlugin;
 
@@ -354,6 +378,9 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(PlayerText);
 }
+
+// Setup
+//
 
 fn simulation_setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
@@ -543,17 +570,16 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
 
 fn game_ui_setup(
     mut commands: Commands,
-    text_query: Query<Entity, With<LevelText>>,
+    text_query: Query<Entity, With<GameUIText>>,
     asset_server: Res<AssetServer>,
     game_level: Option<Res<GameLevel>>,
 ) {
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 24.0;
 
-    match text_query.get_single() {
-        Ok(text) => commands.entity(text).despawn(),
-        Err(_) => (),
-    };
+    for object in text_query.iter() {
+        commands.entity(object).despawn();
+    }
 
     match game_level {
         None => (),
@@ -563,7 +589,7 @@ fn game_ui_setup(
                     style: Style {
                         position_type: PositionType::Absolute,
                         position: Rect {
-                            bottom: Val::Px(10.0),
+                            bottom: Val::Px(34.0),
                             left: Val::Px(10.0),
                             ..default()
                         },
@@ -592,7 +618,44 @@ fn game_ui_setup(
                     },
                     ..default()
                 })
-                .insert(LevelText);
+                .insert(GameUIText);
+
+            commands
+                .spawn_bundle(TextBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        position: Rect {
+                            bottom: Val::Px(10.0),
+                            left: Val::Px(10.0),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    text: Text {
+                        sections: vec![
+                            TextSection {
+                                value: "Time remaining ".to_string(),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::WHITE,
+                                },
+                            },
+                            TextSection {
+                                value: "".to_string(),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::YELLOW,
+                                },
+                            },
+                        ],
+                        ..default()
+                    },
+                    ..default()
+                })
+                .insert(GameUIText)
+                .insert(GameOverCountdownText);
         }
     };
 }
@@ -1021,6 +1084,20 @@ fn check_goal_reached(
     }
 }
 
+fn update_game_over_countdown(
+    mut game_level: ResMut<GameLevel>,
+    mut app_state: ResMut<State<AppState>>,
+    time: Res<Time>,
+) {
+    game_level.countdown_to_game_over.tick(time.delta());
+
+    if game_level.countdown_to_game_over.finished() {
+        app_state
+            .set(AppState::GameOver)
+            .expect("Could not transition to game over state");
+    }
+}
+
 fn cursor_visible<const VISIBILITY: bool>(mut windows: ResMut<Windows>) {
     let window = windows.get_primary_mut().unwrap();
 
@@ -1108,6 +1185,26 @@ fn menu_button_event(
             },
 
             _ => (),
+        }
+    }
+}
+
+fn countdown_text_update(
+    mut text_query: Query<&mut Text, With<GameOverCountdownText>>,
+    game_level: Res<GameLevel>,
+) {
+    match text_query.get_single_mut() {
+        Err(_) => {}
+        Ok(mut countdown_text) => {
+            let dur_secs = game_level.countdown_to_game_over.duration().as_secs_f64();
+            let elapsed = game_level.countdown_to_game_over.elapsed().as_secs_f64();
+            let time_remaining = if game_level.countdown_to_game_over.finished() {
+                0.0
+            } else {
+                (dur_secs - elapsed).ceil()
+            };
+
+            countdown_text.sections[1].value = format!("{}", time_remaining);
         }
     }
 }
