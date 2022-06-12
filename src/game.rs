@@ -79,6 +79,9 @@ impl Distribution<ObjectDensity> for Standard {
 struct GameObject;
 
 #[derive(Component)]
+struct GravityRing(f32);
+
+#[derive(Component)]
 pub struct Player;
 
 #[derive(Component)]
@@ -111,7 +114,8 @@ impl Plugin for GamePlugin {
                     .with_system(update_player_velocity)
                     .with_system(check_goal_reached)
                     .with_system(update_game_over_countdown)
-                    .with_system(countdown_text_update),
+                    .with_system(countdown_text_update)
+                    .with_system(update_gravity_visuals),
             )
             .add_system_set(
                 SystemSet::on_exit(AppState::InGame)
@@ -246,6 +250,33 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         .insert(RigidBody::Fixed)
         .insert(Collider::ball(gravity_source_radius_pixels))
         .insert(Restitution::coefficient(0.1));
+
+    // Gravity force visualization
+    let gravity_rings_amount = 6;
+    let level_bounds_radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
+    let ring_frequency =
+        (level_bounds_radius_pixels - gravity_source_radius_pixels) / gravity_rings_amount as f32;
+
+    for n in 1..=gravity_rings_amount {
+        let n_f = n as f32;
+        let radius = ring_frequency * n_f;
+
+        commands
+            .spawn_bundle(GeometryBuilder::build_as(
+                &shapes::Circle {
+                    radius,
+                    center: Vec2::ZERO,
+                },
+                DrawMode::Stroke(StrokeMode {
+                    options: StrokeOptions::DEFAULT,
+                    // Start with an invisible ring, the correct color will be set in the update system
+                    color: Color::hsla(0.0, 1.0, 1.0, 0.0),
+                }),
+                Transform::default(),
+            ))
+            .insert(GravityRing(radius))
+            .insert(GameObject);
+    }
 }
 
 fn spawn_objects(commands: &mut Commands, current_game_level_n: i32) {
@@ -421,8 +452,9 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     // "Player"
     let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
     let player_extent_y = PLAYER_HEIGHT_METERS * PIXELS_PER_METER;
-    let min_player_distance_from_flag = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER * 1.8;
-    let fallback_anchor = &Vec2::new(0.0, LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER * -0.5);
+    let level_bounds_radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
+    let min_player_distance_from_flag = level_bounds_radius_pixels * 1.8;
+    let fallback_anchor = &Vec2::new(0.0, level_bounds_radius_pixels * -0.5);
     let player_anchor = game_level
         .elevation_vertices
         .iter()
@@ -684,5 +716,48 @@ fn countdown_text_update(
 
             countdown_text.sections[1].value = format!("{}", time_remaining);
         }
+    }
+}
+
+fn update_gravity_visuals(
+    mut visuals_query: Query<(&mut Path, &mut DrawMode, &mut GravityRing)>,
+    gravity_source: Res<GravitySource>,
+) {
+    let level_bounds_radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
+    let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
+    let min_radius = gravity_source_radius_pixels;
+    // fade to nothing just before the ring hits the terrain
+    let max_radius = level_bounds_radius_pixels;
+
+    for (mut path, mut draw_mode, mut ring) in visuals_query.iter_mut() {
+        let current_radius = if ring.0 < min_radius {
+            max_radius
+        } else if ring.0 > max_radius {
+            min_radius
+        } else {
+            ring.0
+        };
+
+        // grow or shrink the ring based on gravity force
+        let next_radius = current_radius + (gravity_source.force * 0.75);
+        // solid when close to the gravity source, transparent when far away
+        let opacity = (1.0 - (next_radius / max_radius)).max(0.0);
+        // dimmer when transparent
+        let lightness = 0.35 + (opacity / 2.0);
+        // a little subdued even when close to the gravity source
+        let capped_opacity = opacity * 0.8;
+
+        let next_shape = shapes::Circle {
+            radius: next_radius,
+            center: Vec2::ZERO,
+        };
+        let next_draw_mode = DrawMode::Stroke(StrokeMode {
+            options: StrokeOptions::DEFAULT,
+            color: Color::hsla(220.0, 1.0, lightness, capped_opacity),
+        });
+
+        ring.0 = next_radius;
+        *path = ShapePath::build_as(&next_shape);
+        *draw_mode = next_draw_mode;
     }
 }
