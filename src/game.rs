@@ -23,13 +23,13 @@ const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 
-const BASE_OBJECTS_AMOUNT: i32 = 16;
-const MAX_OBJECTS_AMOUNT: i32 = 60;
+const BASE_OBJECTS_AMOUNT: u32 = 16;
+const MAX_OBJECTS_AMOUNT: u32 = 60;
 const COUNTDOWN_TO_GAME_OVER_SECONDS: u64 = 30;
 
 #[derive(Component, Clone, Debug)]
 struct GameLevel {
-    n: i32,
+    n: u32,
     countdown_to_game_over: Timer,
     terrain_vertices: Vec<Vec2>,
     elevation_vertices: Vec<Vec2>,
@@ -76,6 +76,15 @@ impl Distribution<ObjectDensity> for Standard {
 }
 
 #[derive(Component)]
+struct LoadingState(Timer);
+
+#[derive(Component)]
+struct LoadingScreen;
+
+#[derive(Component)]
+struct LoadingLevelText;
+
+#[derive(Component)]
 struct GameObject;
 
 #[derive(Component)]
@@ -101,7 +110,14 @@ impl Plugin for GamePlugin {
             .add_system_set(
                 SystemSet::on_enter(AppState::InitGame).with_system(clear_game_progress),
             )
-            .add_system_set(SystemSet::on_enter(AppState::LoadingLevel).with_system(game_setup))
+            .add_system_set(
+                SystemSet::on_enter(AppState::LoadingLevel)
+                    .with_system(game_setup)
+                    .with_system(loading_screen_setup),
+            )
+            .add_system_set(
+                SystemSet::on_update(AppState::LoadingLevel).with_system(loading_update),
+            )
             .add_system_set(
                 SystemSet::on_enter(AppState::InGame)
                     .with_system(game_ui_setup)
@@ -125,12 +141,12 @@ impl Plugin for GamePlugin {
     }
 }
 
-fn create_game_level(current_level_value: i32) -> GameLevel {
+fn create_game_level(current_level_value: u32) -> GameLevel {
     let radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
     // the outer edge (rim) of the circle polygon
     let outer_circle_steps = 180;
     let rim_vertices: Vec<Vec2> = (0..=outer_circle_steps)
-        .map(|step: i32| {
+        .map(|step: u32| {
             let step_multiplier = 360 / outer_circle_steps;
             let a = (step * step_multiplier) as f32;
             let a_rad: f32 = a * (PI / 180.0);
@@ -190,7 +206,6 @@ fn game_cleanup(mut commands: Commands, game_object_query: Query<Entity, With<Ga
 
 fn game_setup(
     mut commands: Commands,
-    mut app_state: ResMut<State<AppState>>,
     game_level: Option<Res<GameLevel>>,
     mut gravity_source: ResMut<GravitySource>,
 ) {
@@ -198,21 +213,69 @@ fn game_setup(
         Some(level) => level.n,
         None => 0,
     };
-
     let next_game_level = create_game_level(current_game_level_n);
+
+    *gravity_source = GravitySource::default();
 
     // Will replace the current game level with the next
     commands.insert_resource(next_game_level.clone());
 
     spawn_level(&mut commands, &next_game_level);
-    spawn_objects(&mut commands, current_game_level_n);
+    spawn_objects(&mut commands, next_game_level.n);
     spawn_player_and_and_goal(&mut commands, &next_game_level);
+}
 
-    *gravity_source = GravitySource::default();
+fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let loading_timer = Timer::from_seconds(2.0, false);
+    let font = asset_server.load("VT323-Regular.ttf");
+    let font_size = 100.0;
 
-    app_state
-        .set(AppState::InGame)
-        .expect("Tried to enter the game from loading, but failed");
+    commands.insert_resource(LoadingState(loading_timer));
+
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: Color::BLACK.into(),
+            ..default()
+        })
+        .with_children(|container| {
+            container
+                .spawn_bundle(TextBundle {
+                    style: Style {
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    text: Text {
+                        sections: vec![
+                            TextSection {
+                                value: "Level ".to_string(),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::WHITE,
+                                },
+                            },
+                            TextSection {
+                                value: "".to_string(),
+                                style: TextStyle {
+                                    font: font.clone(),
+                                    font_size,
+                                    color: Color::YELLOW,
+                                },
+                            },
+                        ],
+                        ..default()
+                    },
+                    ..default()
+                })
+                .insert(LoadingLevelText);
+        })
+        .insert(LoadingScreen);
 }
 
 fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
@@ -279,8 +342,8 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     }
 }
 
-fn spawn_objects(commands: &mut Commands, current_game_level_n: i32) {
-    let difficulty_bonus = 2 * current_game_level_n;
+fn spawn_objects(commands: &mut Commands, game_level_n: u32) {
+    let difficulty_bonus = 2 * game_level_n;
     let objects_amount = (BASE_OBJECTS_AMOUNT + difficulty_bonus).min(MAX_OBJECTS_AMOUNT);
     let full_turn_radians = 2.0 * PI;
 
@@ -604,10 +667,44 @@ fn game_ui_setup(
     };
 }
 
+fn loading_update(
+    mut commands: Commands,
+    loading_screen_query: Query<Entity, With<LoadingScreen>>,
+    mut level_text_query: Query<&mut Text, With<LoadingLevelText>>,
+    mut loading: ResMut<LoadingState>,
+    mut app_state: ResMut<State<AppState>>,
+    game_level: Option<Res<GameLevel>>,
+    time: Res<Time>,
+) {
+    loading.0.tick(time.delta());
+
+    match game_level {
+        Some(level) => {
+            let mut text = level_text_query
+                .get_single_mut()
+                .expect("Level text doesn't exist during loading!");
+            text.sections[1].value = format!("{}", level.n)
+        }
+        None => (),
+    };
+
+    if loading.0.finished() {
+        let loading_screen = loading_screen_query
+            .get_single()
+            .expect("Loading screen doesn't exist whilel loading a level!");
+
+        commands.remove_resource::<LoadingState>();
+        commands.entity(loading_screen).despawn_recursive();
+        app_state
+            .set(AppState::InGame)
+            .expect("Tried to enter the game from loading, but failed");
+    }
+}
+
 fn update_player_velocity(
     mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
     keyboard_input: Res<Input<KeyCode>>,
-    timer: Res<Time>,
+    time: Res<Time>,
 ) {
     match velocities.get_single_mut() {
         Err(_) => {
@@ -644,8 +741,8 @@ fn update_player_velocity(
                 0.0
             };
 
-            vel.linvel += player_control_force * timer.delta_seconds();
-            vel.angvel = (angular_velocity * timer.delta_seconds())
+            vel.linvel += player_control_force * time.delta_seconds();
+            vel.angvel = (angular_velocity * time.delta_seconds())
                 .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
         }
     }
