@@ -13,6 +13,19 @@ pub enum AppState {
     ObserveSimulation,
 }
 
+pub enum VetovoimaColor {}
+
+impl VetovoimaColor {
+    pub const BLACKISH: Color = Color::hsl(0.0, 0.0, 0.0);
+    pub const WHITEISH: Color = Color::hsl(25.0, 1.0, 0.9);
+    pub const BLUEISH_LIGHT: Color = Color::hsl(220.0, 1.0, 0.66);
+    pub const BLUEISH_DARK: Color = Color::hsl(220.0, 0.5, 0.2);
+    pub const BLUEISH_MID: Color = Color::hsl(220.0, 0.5, 0.4);
+    pub const REDDISH: Color = Color::hsl(10.0, 1.0, 0.66);
+    pub const YELLOWISH: Color = Color::hsl(50.0, 1.0, 0.66);
+    pub const GREENISH: Color = Color::hsl(150.0, 1.0, 0.66);
+}
+
 pub fn cursor_visible<const VISIBILITY: bool>(mut windows: ResMut<Windows>) {
     let window = windows.get_primary_mut().unwrap();
 

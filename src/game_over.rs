@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::app::AppState;
+use crate::app::{AppState, VetovoimaColor};
 
 const GAME_OVER_SCREEN_SHOW_DURATION_SECONDS: u64 = 5;
 
@@ -44,7 +44,7 @@ fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>)
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: Color::BLACK.into(),
+            color: VetovoimaColor::BLACKISH.into(),
             ..default()
         })
         .with_children(|container| {
@@ -58,7 +58,7 @@ fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>)
                     TextStyle {
                         font,
                         font_size,
-                        color: Color::RED,
+                        color: VetovoimaColor::REDDISH,
                     },
                     TextAlignment {
                         horizontal: HorizontalAlign::Center,

@@ -1,10 +1,10 @@
 use bevy::{app::AppExit, prelude::*};
 
-use crate::app::{cursor_visible, AppState, APP_NAME};
+use crate::app::{cursor_visible, AppState, VetovoimaColor, APP_NAME};
 
-const BUTTON_COLOR: Color = Color::rgb(0.15, 0.15, 0.15);
-const BUTTON_COLOR_HOVER: Color = Color::rgb(0.25, 0.25, 0.25);
-const BUTTON_ACTIVE_COLOR: Color = Color::rgb(0.35, 0.75, 0.35);
+const BUTTON_COLOR: Color = VetovoimaColor::BLUEISH_DARK;
+const BUTTON_COLOR_HOVER: Color = VetovoimaColor::BLUEISH_MID;
+const BUTTON_ACTIVE_COLOR: Color = VetovoimaColor::BLUEISH_LIGHT;
 static NEW_GAME_BUTTON_LABEL: &str = "New game";
 static EXIT_BUTTON_LABEL: &str = "Exit";
 
@@ -50,7 +50,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 padding: Rect::all(Val::Px(10.0)),
                 ..Default::default()
             },
-            color: Color::BLACK.into(),
+            color: VetovoimaColor::BLACKISH.into(),
             ..Default::default()
         })
         .insert(MainMenu)
@@ -64,7 +64,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                         margin: Rect::all(Val::Px(20.0)),
                         ..default()
                     },
-                    color: Color::BLACK.into(),
+                    color: VetovoimaColor::BLACKISH.into(),
                     ..default()
                 })
                 .with_children(|parent| {
@@ -74,7 +74,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             TextStyle {
                                 font: font.clone(),
                                 font_size: font_size * 1.6,
-                                color: Color::WHITE,
+                                color: VetovoimaColor::WHITEISH,
                             },
                             Default::default(),
                         ),
@@ -101,7 +101,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             TextStyle {
                                 font: font.clone(),
                                 font_size: font_size,
-                                color: Color::WHITE,
+                                color: VetovoimaColor::WHITEISH,
                             },
                             Default::default(),
                         ),
@@ -129,7 +129,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             TextStyle {
                                 font: font.clone(),
                                 font_size: font_size,
-                                color: Color::WHITE,
+                                color: VetovoimaColor::WHITEISH,
                             },
                             Default::default(),
                         ),

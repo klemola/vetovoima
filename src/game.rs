@@ -8,7 +8,7 @@ use rand_distr::{Distribution, Normal, Standard};
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use crate::app::{cursor_visible, AppState, PIXELS_PER_METER};
+use crate::app::{cursor_visible, AppState, VetovoimaColor, PIXELS_PER_METER};
 use crate::simulation::{
     apply_forces, update_gravity, Attractable, GravitySource, GRAVITY_SOURCE_RADIUS_METERS,
 };
@@ -240,7 +240,7 @@ fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) 
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: Color::BLACK.into(),
+            color: VetovoimaColor::BLACKISH.into(),
             ..default()
         })
         .with_children(|container| {
@@ -257,7 +257,7 @@ fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) 
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::WHITE,
+                                    color: VetovoimaColor::WHITEISH,
                                 },
                             },
                             TextSection {
@@ -265,7 +265,7 @@ fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) 
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::YELLOW,
+                                    color: VetovoimaColor::YELLOWISH,
                                 },
                             },
                         ],
@@ -287,7 +287,9 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands
         .spawn_bundle(GeometryBuilder::build_as(
             level_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
+                VetovoimaColor::WHITEISH,
+            )),
             Transform::default(),
         ))
         .insert(GameObject)
@@ -306,7 +308,9 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands
         .spawn_bundle(GeometryBuilder::build_as(
             &gravity_source_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::WHITE)),
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
+                VetovoimaColor::WHITEISH,
+            )),
             Transform::default(),
         ))
         .insert(GameObject)
@@ -373,9 +377,9 @@ fn spawn_object(
     transform: Transform,
 ) {
     let (density_value, base_scale_factor, color) = match density {
-        ObjectDensity::Light => (0.75, 1.0, Color::PINK),
-        ObjectDensity::Medium => (1.0, 2.0, Color::RED),
-        ObjectDensity::Heavy => (10.0, 3.2, Color::BLUE),
+        ObjectDensity::Light => (0.75, 1.0, VetovoimaColor::GREENISH),
+        ObjectDensity::Medium => (1.0, 2.0, VetovoimaColor::REDDISH),
+        ObjectDensity::Heavy => (10.0, 3.2, VetovoimaColor::WHITEISH),
     };
     let scale_variation: f32 = thread_rng().gen_range(-0.2..0.4);
     let scale_factor = (base_scale_factor + (base_scale_factor * scale_variation)).max(1.0);
@@ -503,7 +507,9 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
             },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::ORANGE)),
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
+                VetovoimaColor::BLUEISH_LIGHT,
+            )),
             flag_transform,
         ))
         .insert(GameObject)
@@ -531,7 +537,9 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
                 extents: Vec2::new(player_extent_x, player_extent_y),
                 origin: RectangleOrigin::Center,
             },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(Color::YELLOW)),
+            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
+                VetovoimaColor::YELLOWISH,
+            )),
             player_transform,
         ))
         .insert(GameObject)
@@ -609,7 +617,7 @@ fn game_ui_setup(
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::WHITE,
+                                    color: VetovoimaColor::WHITEISH,
                                 },
                             },
                             TextSection {
@@ -617,7 +625,7 @@ fn game_ui_setup(
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::YELLOW,
+                                    color: VetovoimaColor::YELLOWISH,
                                 },
                             },
                         ],
@@ -645,7 +653,7 @@ fn game_ui_setup(
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::WHITE,
+                                    color: VetovoimaColor::WHITEISH,
                                 },
                             },
                             TextSection {
@@ -653,7 +661,7 @@ fn game_ui_setup(
                                 style: TextStyle {
                                     font: font.clone(),
                                     font_size,
-                                    color: Color::YELLOW,
+                                    color: VetovoimaColor::YELLOWISH,
                                 },
                             },
                         ],

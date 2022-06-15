@@ -7,8 +7,8 @@ use bevy::{
 };
 use bevy_rapier2d::prelude::*;
 
-use crate::game::Player;
 use crate::simulation::GravitySource;
+use crate::{app::VetovoimaColor, game::Player};
 
 #[derive(Component)]
 struct FpsText;
@@ -73,7 +73,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::WHITE,
+                            color: VetovoimaColor::WHITEISH,
                         },
                     },
                     TextSection {
@@ -81,7 +81,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::YELLOW,
+                            color: VetovoimaColor::YELLOWISH,
                         },
                     },
                 ],
@@ -109,7 +109,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::WHITE,
+                            color: VetovoimaColor::WHITEISH,
                         },
                     },
                     TextSection {
@@ -117,7 +117,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::RED,
+                            color: VetovoimaColor::REDDISH,
                         },
                     },
                 ],
@@ -145,7 +145,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::WHITE,
+                            color: VetovoimaColor::WHITEISH,
                         },
                     },
                     TextSection {
@@ -153,7 +153,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: TextStyle {
                             font: font.clone(),
                             font_size,
-                            color: Color::RED,
+                            color: VetovoimaColor::REDDISH,
                         },
                     },
                 ],

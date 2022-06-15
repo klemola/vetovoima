@@ -8,7 +8,7 @@ mod simulation;
 use bevy::{prelude::*, window::WindowMode};
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 
-use app::{AppState, APP_NAME, PIXELS_PER_METER};
+use app::{AppState, VetovoimaColor, APP_NAME, PIXELS_PER_METER};
 use devtools::DevTools;
 use game::GamePlugin;
 use game_over::GameOverPlugin;
@@ -18,7 +18,7 @@ use simulation::SimulationPlugin;
 fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
-        .insert_resource(ClearColor(Color::BLACK))
+        .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
             mode: WindowMode::Fullscreen,
