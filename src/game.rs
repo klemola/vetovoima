@@ -108,7 +108,10 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
             .add_system_set(
-                SystemSet::on_enter(AppState::InitGame).with_system(clear_game_progress),
+                SystemSet::on_enter(AppState::InitGame)
+                    .with_system(init_game)
+                    .with_system(game_cleanup)
+                    .with_system(cursor_visible::<false>),
             )
             .add_system_set(
                 SystemSet::on_enter(AppState::LoadingLevel)
@@ -118,11 +121,8 @@ impl Plugin for GamePlugin {
             .add_system_set(
                 SystemSet::on_update(AppState::LoadingLevel).with_system(loading_update),
             )
-            .add_system_set(
-                SystemSet::on_enter(AppState::InGame)
-                    .with_system(game_ui_setup)
-                    .with_system(cursor_visible::<false>),
-            )
+            .add_system_set(SystemSet::on_exit(AppState::LoadingLevel).with_system(loading_cleanup))
+            .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(game_ui_setup))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
                     .with_system(update_gravity)
@@ -191,7 +191,8 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
     }
 }
 
-fn clear_game_progress(mut commands: Commands, mut app_state: ResMut<State<AppState>>) {
+fn init_game(mut commands: Commands, mut app_state: ResMut<State<AppState>>) {
+    // Effectively resets the game (start from level 1)
     commands.remove_resource::<GameLevel>();
     app_state
         .set(AppState::LoadingLevel)
@@ -633,7 +634,6 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn loading_update(
     mut commands: Commands,
-    loading_screen_query: Query<Entity, With<LoadingScreen>>,
     mut level_text_query: Query<&mut Text, With<LoadingLevelText>>,
     mut loading: ResMut<LoadingState>,
     mut app_state: ResMut<State<AppState>>,
@@ -653,16 +653,22 @@ fn loading_update(
     };
 
     if loading.0.finished() {
-        let loading_screen = loading_screen_query
-            .get_single()
-            .expect("Loading screen doesn't exist whilel loading a level!");
-
         commands.remove_resource::<LoadingState>();
-        commands.entity(loading_screen).despawn_recursive();
         app_state
             .set(AppState::InGame)
             .expect("Tried to enter the game from loading, but failed");
     }
+}
+
+fn loading_cleanup(
+    mut commands: Commands,
+    loading_screen_query: Query<Entity, With<LoadingScreen>>,
+) {
+    let loading_screen = loading_screen_query
+        .get_single()
+        .expect("Loading screen doesn't exist whilel loading a level!");
+
+    commands.entity(loading_screen).despawn_recursive();
 }
 
 fn update_player_velocity(
