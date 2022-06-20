@@ -36,8 +36,7 @@ struct GameLevel {
 }
 
 enum ObjectKind {
-    Rectangle,
-    Hexagon,
+    Ngon,
     Circle,
 }
 
@@ -45,16 +44,15 @@ impl Distribution<ObjectKind> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ObjectKind {
         let distance: f32 = rng.gen();
 
-        if distance > 0.8 {
+        if distance > 0.6 {
             ObjectKind::Circle
-        } else if distance < 0.25 {
-            ObjectKind::Hexagon
         } else {
-            ObjectKind::Rectangle
+            ObjectKind::Ngon
         }
     }
 }
 
+#[derive(PartialEq)]
 enum ObjectDensity {
     Light,
     Medium,
@@ -65,7 +63,7 @@ impl Distribution<ObjectDensity> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ObjectDensity {
         let distance: f32 = rng.gen();
 
-        if distance > 0.85 {
+        if distance > 0.78 {
             ObjectDensity::Heavy
         } else if distance < 0.3 {
             ObjectDensity::Light
@@ -353,20 +351,19 @@ fn spawn_objects(commands: &mut Commands, game_level_n: u32) {
     let full_turn_radians = 2.0 * PI;
 
     for n in 1..=objects_amount {
-        let object_kind: ObjectKind = rand::random();
         let object_density: ObjectDensity = rand::random();
-        let range = match object_density {
-            ObjectDensity::Light => 0.2..=0.4,
-            ObjectDensity::Medium => 0.4..=0.6,
-            ObjectDensity::Heavy => 0.8..=0.8,
+        let (object_kind, distance_range) = match object_density {
+            ObjectDensity::Light => (ObjectKind::Circle, 0.2..=0.4),
+            ObjectDensity::Medium => (rand::random(), 0.4..=0.6),
+            ObjectDensity::Heavy => (ObjectKind::Ngon, 0.8..=0.8),
         };
         let distance_from_center_meters: f32 =
-            thread_rng().gen_range(range) * LEVEL_BOUNDS_RADIUS_METERS;
+            thread_rng().gen_range(distance_range) * LEVEL_BOUNDS_RADIUS_METERS;
         let base_x = distance_from_center_meters * PIXELS_PER_METER;
-        let angle = (full_turn_radians / objects_amount as f32) * n as f32;
+        let angle_radians = (full_turn_radians / objects_amount as f32) * n as f32;
         let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, 0.0));
 
-        transform.rotate_around(Vec3::ZERO, Quat::from_rotation_z(angle));
+        transform.rotate_around(Vec3::ZERO, Quat::from_rotation_z(angle_radians));
         spawn_object(commands, object_kind, object_density, transform);
     }
 }
@@ -385,8 +382,7 @@ fn spawn_object(
     let scale_variation: f32 = thread_rng().gen_range(-0.2..0.4);
     let scale_factor = (base_scale_factor + (base_scale_factor * scale_variation)).max(1.0);
     let (shape_bundle, collider, restitution_coefficient) = match kind {
-        ObjectKind::Rectangle => rectangle_props(transform, scale_factor, color),
-        ObjectKind::Hexagon => hexagon_props(transform, scale_factor, color),
+        ObjectKind::Ngon => ngon_props(transform, scale_factor, color),
         ObjectKind::Circle => circle_props(transform, scale_factor, color),
     };
 
@@ -405,16 +401,33 @@ fn spawn_object(
         });
 }
 
-fn rectangle_props(
+fn ngon_props(
     transform: Transform,
     scale_factor: f32,
     color: Color,
 ) -> (ShapeBundle, Collider, f32) {
-    let extent = scale_factor * PIXELS_PER_METER;
+    let base_radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
+    let full_turn_radians = 2.0 * PI;
+    let std_deviation = 1.3;
+    let normal_distribution = Normal::new(base_radius, std_deviation).unwrap();
+    let sides_amount: u32 = thread_rng().gen_range(5..=15);
+    let ngon_vertices: Vec<Vec2> = (1..=sides_amount)
+        .into_iter()
+        .map(|side_n| {
+            let angle_radians = (full_turn_radians / sides_amount as f32) * side_n as f32;
+            let distance = normal_distribution.sample(&mut rand::thread_rng());
 
-    let shape = shapes::Rectangle {
-        extents: Vec2::new(extent, extent),
-        origin: RectangleOrigin::Center,
+            // polar -> cartesian conversion
+            Vec2::new(
+                distance * angle_radians.cos(),
+                distance * angle_radians.sin(),
+            )
+        })
+        .collect();
+
+    let shape = shapes::Polygon {
+        points: ngon_vertices.clone(),
+        closed: true,
     };
 
     let shape_bundle = GeometryBuilder::build_as(
@@ -423,48 +436,9 @@ fn rectangle_props(
         transform,
     );
 
-    let collider = Collider::cuboid(extent / 2.0, extent / 2.0);
+    let collider = Collider::convex_hull(&ngon_vertices).unwrap_or(Collider::ball(base_radius));
 
     (shape_bundle, collider, 0.1)
-}
-
-fn hexagon_props(
-    transform: Transform,
-    scale_factor: f32,
-    color: Color,
-) -> (ShapeBundle, Collider, f32) {
-    let radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
-    let step_angle = PI / 3.0;
-    let hexagon_vertices = vec![
-        Vec2::new(radius, 0.0),
-        Vec2::new(step_angle.cos() * radius, step_angle.sin() * radius),
-        Vec2::new(
-            (step_angle * 2.0).cos() * radius,
-            (step_angle * 2.0).sin() * radius,
-        ),
-        Vec2::new(-radius, 0.0),
-        Vec2::new(
-            -(step_angle * 2.0).cos() * radius,
-            -(step_angle * 2.0).sin() * radius,
-        ),
-        Vec2::new(-step_angle.cos() * radius, -step_angle.sin() * radius),
-    ];
-
-    let shape = shapes::RegularPolygon {
-        sides: 6,
-        feature: shapes::RegularPolygonFeature::Radius(radius),
-        ..shapes::RegularPolygon::default()
-    };
-
-    let shape_bundle = GeometryBuilder::build_as(
-        &shape,
-        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
-        transform,
-    );
-
-    let collider = Collider::convex_hull(&hexagon_vertices).unwrap_or(Collider::ball(radius));
-
-    (shape_bundle, collider, 0.2)
 }
 
 fn circle_props(
