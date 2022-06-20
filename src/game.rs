@@ -97,7 +97,7 @@ pub struct Player;
 struct Flag;
 
 #[derive(Component)]
-struct GameUIText;
+struct GameUI;
 
 #[derive(Component)]
 struct GameOverCountdownText;
@@ -582,97 +582,53 @@ fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
     .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
 }
 
-fn game_ui_cleanup(mut commands: Commands, text_query: Query<Entity, With<GameUIText>>) {
-    for text in text_query.iter() {
-        commands.entity(text).despawn();
+fn game_ui_cleanup(mut commands: Commands, ui_query: Query<Entity, With<GameUI>>) {
+    for ui_entity in ui_query.iter() {
+        commands.entity(ui_entity).despawn_recursive();
     }
 }
 
-fn game_ui_setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    game_level: Option<Res<GameLevel>>,
-) {
+fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 24.0;
+    let font_size = 48.0;
 
-    match game_level {
-        None => (),
-        Some(level) => {
-            commands
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: Color::NONE.into(),
+            ..default()
+        })
+        .insert(GameUI)
+        .with_children(|container| {
+            container
                 .spawn_bundle(TextBundle {
                     style: Style {
-                        position_type: PositionType::Absolute,
-                        position: Rect {
-                            bottom: Val::Px(34.0),
-                            left: Val::Px(10.0),
-                            ..default()
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    text: Text::with_section(
+                        "",
+                        TextStyle {
+                            font,
+                            font_size,
+                            color: VetovoimaColor::BLACKISH,
                         },
-                        ..default()
-                    },
-                    text: Text {
-                        sections: vec![
-                            TextSection {
-                                value: "Level ".to_string(),
-                                style: TextStyle {
-                                    font: font.clone(),
-                                    font_size,
-                                    color: VetovoimaColor::WHITEISH,
-                                },
-                            },
-                            TextSection {
-                                value: format!("{}", level.n),
-                                style: TextStyle {
-                                    font: font.clone(),
-                                    font_size,
-                                    color: VetovoimaColor::YELLOWISH,
-                                },
-                            },
-                        ],
-                        ..default()
-                    },
-                    ..default()
-                })
-                .insert(GameUIText);
+                        TextAlignment {
+                            horizontal: HorizontalAlign::Center,
+                            vertical: VerticalAlign::Center,
+                        },
+                    ),
 
-            commands
-                .spawn_bundle(TextBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: Rect {
-                            bottom: Val::Px(10.0),
-                            left: Val::Px(10.0),
-                            ..default()
-                        },
-                        ..default()
-                    },
-                    text: Text {
-                        sections: vec![
-                            TextSection {
-                                value: "Time remaining ".to_string(),
-                                style: TextStyle {
-                                    font: font.clone(),
-                                    font_size,
-                                    color: VetovoimaColor::WHITEISH,
-                                },
-                            },
-                            TextSection {
-                                value: "".to_string(),
-                                style: TextStyle {
-                                    font: font.clone(),
-                                    font_size,
-                                    color: VetovoimaColor::YELLOWISH,
-                                },
-                            },
-                        ],
-                        ..default()
-                    },
                     ..default()
                 })
-                .insert(GameUIText)
                 .insert(GameOverCountdownText);
-        }
-    };
+        });
 }
 
 fn loading_update(
@@ -818,8 +774,17 @@ fn countdown_text_update(
             } else {
                 (dur_secs - elapsed).ceil()
             };
+            let (text_color, font_size) = if time_remaining <= 5.0 {
+                (VetovoimaColor::REDDISH, 64.0)
+            } else {
+                (VetovoimaColor::BLACKISH, 48.0)
+            };
 
-            countdown_text.sections[1].value = format!("{}", time_remaining);
+            let countdown_text_seconds = &mut countdown_text.sections[0];
+
+            countdown_text_seconds.style.color = text_color;
+            countdown_text_seconds.style.font_size = font_size;
+            countdown_text_seconds.value = format!("{}", time_remaining);
         }
     }
 }
