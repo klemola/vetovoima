@@ -25,7 +25,6 @@ const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 
 const BASE_OBJECTS_AMOUNT: u32 = 16;
 const MAX_OBJECTS_AMOUNT: u32 = 60;
-const COUNTDOWN_TO_GAME_OVER_SECONDS: u64 = 30;
 
 #[derive(Component, Clone, Debug)]
 struct GameLevel {
@@ -140,6 +139,7 @@ impl Plugin for GamePlugin {
 }
 
 fn create_game_level(current_level_value: u32) -> GameLevel {
+    let next_level_n = current_level_value + 1;
     let radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
     // the outer edge (rim) of the circle polygon
     let outer_circle_steps = 180;
@@ -178,12 +178,16 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
         })
         .collect();
 
+    let countdown: u64 = match next_level_n {
+        1..=4 => 60,
+        5..=9 => 40,
+        10..=25 => 30,
+        _ => 20,
+    };
+
     GameLevel {
-        n: current_level_value + 1,
-        countdown_to_game_over: Timer::new(
-            Duration::from_secs(COUNTDOWN_TO_GAME_OVER_SECONDS),
-            false,
-        ),
+        n: next_level_n,
+        countdown_to_game_over: Timer::new(Duration::from_secs(countdown), false),
         terrain_vertices: vec![elevation_vertices.clone(), rim_vertices.clone()].concat(),
         elevation_vertices,
     }
