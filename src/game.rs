@@ -161,7 +161,7 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
         .map(|step: i32| {
             let mean = 1.6 * PIXELS_PER_METER;
             let variation = if step > 0 && step < inner_circle_steps {
-                let std_deviation = 2.2;
+                let std_deviation = 0.086 * PIXELS_PER_METER;
                 let normal_distribution = Normal::new(mean, std_deviation).unwrap();
                 normal_distribution.sample(&mut rand::thread_rng())
             } else {
@@ -569,7 +569,7 @@ fn game_ui_cleanup(mut commands: Commands, ui_query: Query<Entity, With<GameUI>>
 
 fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 48.0;
+    let font_size = 36.0;
 
     commands
         .spawn_bundle(NodeBundle {
@@ -759,9 +759,9 @@ fn countdown_text_update(
                 (dur_secs - elapsed).ceil()
             };
             let (text_color, font_size) = if time_remaining <= 5.0 {
-                (VetovoimaColor::REDDISH, 64.0)
+                (VetovoimaColor::REDDISH, 48.0)
             } else {
-                (VetovoimaColor::BLACKISH, 48.0)
+                (VetovoimaColor::BLACKISH, 36.0)
             };
 
             let countdown_text_seconds = &mut countdown_text.sections[0];
@@ -793,7 +793,9 @@ fn update_gravity_visuals(
         };
 
         // grow or shrink the ring based on gravity force
-        let next_radius = current_radius + (gravity_source.force * 0.75);
+        // TODO: consider replacing the magic number with something that's affected by gravity force (scaled)
+        let radius_force_ratio = PIXELS_PER_METER / 21.35;
+        let next_radius = current_radius + (gravity_source.force * radius_force_ratio);
         // solid when close to the gravity source, transparent when far away
         let opacity = (1.0 - (next_radius / max_radius)).max(0.0);
         // dimmer when transparent

@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::ExternalForce;
 
+use crate::app::PIXELS_PER_METER;
+
 pub const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
-const GRAVITY_FORCE_SCALE: f32 = 12_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
+const GRAVITY_FORCE_SCALE: f32 = 750.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
@@ -94,7 +96,7 @@ pub fn apply_forces(
 
         let force_dir = translation_2d.normalize();
         let base_force = force_dir * gravity_source.force * GRAVITY_FORCE_SCALE;
-        let gravity_force = base_force / translation_2d.length();
+        let gravity_force = base_force / (translation_2d.length() / PIXELS_PER_METER);
         ext_force.force = gravity_force;
     }
 }

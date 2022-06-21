@@ -21,7 +21,9 @@ fn main() {
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
-            mode: WindowMode::Fullscreen,
+            mode: WindowMode::Windowed,
+            width: 1280.0,
+            height: 720.0,
             ..default()
         })
         .add_plugins(DefaultPlugins)
