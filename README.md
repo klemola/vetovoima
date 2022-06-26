@@ -41,3 +41,4 @@ To create an optimized version, use
 
 You'll find the executable under `./target/release/`.
 You need to symlink or copy the `assets` folder to the same directory where the release build is executed from.
+
