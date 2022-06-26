@@ -4,19 +4,23 @@
 
 ## _vetovoima_ is an arcade game where you control the gravity!
 
-The world is a hollow circle with a star in the center.
-You're a **Yellow Block** and your goal is to get to the **Tall Blue Block** before the time runs out. You have to make your way through shifting debris.
-You can **move forward**, **slow down** and **control the intensity and direction of gravity**.
-The levels are randomly generated and the challenge is to survive the chaos that ensues from changes to gravity.
-There's an increasing amount of debris flying around and less time to make it to the goal as you progress through the levels.
+The world is a hollow circle with a star in the center. You're the **Yellow Block** and your goal is to navigate through shifting debris to the **Tall Blue Block** before the time runs out. The challenge is to survive the chaos that ensues from changes to gravity.
 
-### Controls
+You can **move forward**, **slow down** and change the **intensity and direction of gravity**:
 
 ➡️ **Right arrow**: move forward
 
 ⬅️ **Left arrow**: slow down
 
 ↕️ **Up/Down arrow**: control the gravity
+
+## Play _vetovoima_
+
+vetovoima is up on [itch.io](https://yourmagicisworking.itch.io/vetovoima)
+
+### Gameplay preview
+
+> The preview is WebP format, which might not be supported by some browsers. [Try Vimeo instead](https://vimeo.com/723716079)
 
 ![vetovoima_level](docs/vetovoima_level.webp)
 
