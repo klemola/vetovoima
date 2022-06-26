@@ -12,7 +12,6 @@ static EXIT_BUTTON_LABEL: &str = "Exit";
 enum MenuButton {
     NewGame,
     Exit,
-    SimulationMode,
 }
 
 #[derive(Component)]
@@ -100,7 +99,7 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             NEW_GAME_BUTTON_LABEL,
                             TextStyle {
                                 font: font.clone(),
-                                font_size: font_size,
+                                font_size,
                                 color: VetovoimaColor::WHITEISH,
                             },
                             Default::default(),
@@ -127,8 +126,8 @@ fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                         text: Text::with_section(
                             EXIT_BUTTON_LABEL,
                             TextStyle {
-                                font: font.clone(),
-                                font_size: font_size,
+                                font,
+                                font_size,
                                 color: VetovoimaColor::WHITEISH,
                             },
                             Default::default(),
@@ -172,20 +171,13 @@ fn menu_button_event(
     mut exit: EventWriter<AppExit>,
 ) {
     for (interaction, button) in interaction_query.iter() {
-        match *interaction {
-            Interaction::Clicked => match button {
+        if *interaction == Interaction::Clicked {
+            match button {
                 MenuButton::NewGame => app_state
                     .set(AppState::InitGame)
                     .expect("Could not start the game"),
                 MenuButton::Exit => exit.send(AppExit),
-                MenuButton::SimulationMode => {
-                    app_state
-                        .set(AppState::ObserveSimulation)
-                        .expect("Could not start the observe simulation mode");
-                }
-            },
-
-            _ => (),
+            }
         }
     }
 }

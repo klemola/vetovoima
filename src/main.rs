@@ -50,13 +50,11 @@ pub fn app_controls(
     mut keyboard_input: ResMut<Input<KeyCode>>,
     mut app_state: ResMut<State<AppState>>,
 ) {
-    if keyboard_input.just_released(KeyCode::Escape) {
-        if app_state.current() != &AppState::InMenu {
-            app_state
-                .set(AppState::InMenu)
-                .expect("Could show the main menu");
+    if keyboard_input.just_released(KeyCode::Escape) && app_state.current() != &AppState::InMenu {
+        app_state
+            .set(AppState::InMenu)
+            .expect("Could show the main menu");
 
-            keyboard_input.reset(KeyCode::Escape);
-        }
+        keyboard_input.reset(KeyCode::Escape);
     }
 }

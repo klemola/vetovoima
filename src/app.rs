@@ -10,7 +10,6 @@ pub enum AppState {
     LoadingLevel,
     InGame,
     GameOver,
-    ObserveSimulation,
 }
 
 pub enum VetovoimaColor {}

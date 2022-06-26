@@ -19,6 +19,7 @@ struct GravityText;
 #[derive(Component)]
 struct PlayerText;
 
+#[derive(Default)]
 struct DebugOutputPlugin;
 
 impl Plugin for DebugOutputPlugin {
@@ -30,18 +31,12 @@ impl Plugin for DebugOutputPlugin {
     }
 }
 
-impl Default for DebugOutputPlugin {
-    fn default() -> Self {
-        Self {}
-    }
-}
-
 pub struct DevTools;
 
 impl PluginGroup for DevTools {
     fn build(&mut self, group: &mut PluginGroupBuilder) {
         match env::var("DEV_TOOLS") {
-            Result::Ok(value) if value == "1".to_string() => group
+            Result::Ok(value) if value == *"1" => group
                 .add(RapierDebugRenderPlugin::default())
                 .add(FrameTimeDiagnosticsPlugin::default())
                 .add(DebugOutputPlugin::default()),
@@ -151,7 +146,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     TextSection {
                         value: "".to_string(),
                         style: TextStyle {
-                            font: font.clone(),
+                            font,
                             font_size,
                             color: VetovoimaColor::REDDISH,
                         },

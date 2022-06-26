@@ -188,7 +188,7 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
     GameLevel {
         n: next_level_n,
         countdown_to_game_over: Timer::new(Duration::from_secs(countdown), false),
-        terrain_vertices: vec![elevation_vertices.clone(), rim_vertices.clone()].concat(),
+        terrain_vertices: vec![elevation_vertices.clone(), rim_vertices].concat(),
         elevation_vertices,
     }
 }
@@ -266,7 +266,7 @@ fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) 
                             TextSection {
                                 value: "".to_string(),
                                 style: TextStyle {
-                                    font: font.clone(),
+                                    font,
                                     font_size,
                                     color: VetovoimaColor::YELLOWISH,
                                 },
@@ -440,7 +440,8 @@ fn ngon_props(
         transform,
     );
 
-    let collider = Collider::convex_hull(&ngon_vertices).unwrap_or(Collider::ball(base_radius));
+    let collider =
+        Collider::convex_hull(&ngon_vertices).unwrap_or_else(|| Collider::ball(base_radius));
 
     (shape_bundle, collider, 0.1)
 }
@@ -453,7 +454,7 @@ fn circle_props(
     let radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
 
     let shape = shapes::Circle {
-        radius: radius,
+        radius,
         center: Vec2::ZERO,
     };
 
@@ -478,7 +479,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .iter()
         .choose(&mut thread_rng())
         .unwrap_or(&Vec2::ZERO);
-    let flag_transform = stand_upright_at_anchor(&flag_anchor, flag_extent_y);
+    let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y);
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -508,7 +509,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .iter()
         .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
         .unwrap_or(fallback_anchor);
-    let player_transform = stand_upright_at_anchor(&player_anchor, player_extent_y);
+    let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y);
 
     commands
         .spawn_bundle(GeometryBuilder::build_as(
@@ -702,31 +703,30 @@ fn check_goal_reached(
     mut app_state: ResMut<State<AppState>>,
     rapier_context: Res<RapierContext>,
 ) {
-    match (player_query.get_single(), flag_query.get_single()) {
-        (Ok((player_transform, player_shape)), Ok(flag_entity)) => {
-            let shape_pos: Vec2 = Vec2::new(
-                player_transform.translation.x,
-                player_transform.translation.y,
-            );
-            let (_, player_angle) = player_transform.rotation.to_axis_angle();
-            let groups = InteractionGroups::all();
-            let flag_id = flag_entity.id();
+    if let (Ok((player_transform, player_shape)), Ok(flag_entity)) =
+        (player_query.get_single(), flag_query.get_single())
+    {
+        let shape_pos: Vec2 = Vec2::new(
+            player_transform.translation.x,
+            player_transform.translation.y,
+        );
+        let (_, player_angle) = player_transform.rotation.to_axis_angle();
+        let groups = InteractionGroups::all();
+        let flag_id = flag_entity.id();
 
-            rapier_context.intersections_with_shape(
-                shape_pos,
-                player_angle,
-                player_shape,
-                groups,
-                Some(&|entity: Entity| entity.id() == flag_id),
-                |_| {
-                    app_state
-                        .set(AppState::LoadingLevel)
-                        .expect("Could not change the level upon reaching the goal");
-                    true
-                },
-            );
-        }
-        _ => (),
+        rapier_context.intersections_with_shape(
+            shape_pos,
+            player_angle,
+            player_shape,
+            groups,
+            Some(&|entity: Entity| entity.id() == flag_id),
+            |_| {
+                app_state
+                    .set(AppState::LoadingLevel)
+                    .expect("Could not change the level upon reaching the goal");
+                true
+            },
+        );
     }
 }
 

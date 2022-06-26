@@ -39,14 +39,27 @@ pub struct SimulationPlugin;
 
 impl Plugin for SimulationPlugin {
     fn build(&self, app: &mut App) {
-        assert!(MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE);
-        assert!(GRAVITY_FORCE_SCALE > 0.0);
-        assert!(
+        validate_requirement(
+            MAX_GRAVITY_FORCE > MIN_GRAVITY_FORCE,
+            "Max gravity should be greater than min gravity",
+        );
+        validate_requirement(
+            GRAVITY_FORCE_SCALE > 0.0,
+            "Gravity force scale should be positive",
+        );
+        validate_requirement(
             INITIAL_GRAVITY_FORCE <= MAX_GRAVITY_FORCE
-                && INITIAL_GRAVITY_FORCE >= MIN_GRAVITY_FORCE
+                && INITIAL_GRAVITY_FORCE >= MIN_GRAVITY_FORCE,
+            "Initial gravity should be within gravity force bounds",
         );
 
         app.insert_resource(GravitySource::default());
+    }
+}
+
+fn validate_requirement(requirement: bool, description: &str) {
+    if !requirement {
+        panic!("Validation failed: {description}");
     }
 }
 
