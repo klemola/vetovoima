@@ -8,7 +8,7 @@ use rand_distr::{Distribution, Normal, Standard};
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use crate::app::{cursor_visible, AppState, VetovoimaColor, PIXELS_PER_METER};
+use crate::app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, PIXELS_PER_METER};
 use crate::simulation::{
     apply_forces, update_gravity, Attractable, GravitySource, GRAVITY_SOURCE_RADIUS_METERS,
 };
@@ -666,6 +666,7 @@ fn loading_finished_effects(
 
 fn update_player_velocity(
     mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
+    button_press: Res<ButtonPress>,
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
 ) {
@@ -674,16 +675,18 @@ fn update_player_velocity(
             // The player has not been spawned yet (or the level might be changing)
         }
         Ok((mut vel, transform)) => {
+            let left_pressed = keyboard_input.pressed(KeyCode::Left) || button_press.left_pressed;
+            let right_pressed =
+                keyboard_input.pressed(KeyCode::Right) || button_press.right_pressed;
+
             let forward = transform.local_x();
             let forward_dir = Vec2::new(forward.x, forward.y);
             let current_velocity = (vel.linvel * forward_dir).length();
             let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
-            let intensity = if keyboard_input.pressed(KeyCode::Left) && negative_velocity == 0.0 {
+            let intensity = if left_pressed && negative_velocity == 0.0 {
                 // Slow down until the player halts
                 PLAYER_SLOW_DOWN_VELOCITY
-            } else if keyboard_input.pressed(KeyCode::Right)
-                && current_velocity < PLAYER_MAX_FORWARD_VELOCITY
-            {
+            } else if right_pressed && current_velocity < PLAYER_MAX_FORWARD_VELOCITY {
                 // Accelerate in the forward direction
                 PLAYER_MAX_FORWARD_VELOCITY
             } else {
