@@ -1,12 +1,12 @@
 use bevy::{app::AppExit, prelude::*};
 
-use crate::app::{cursor_visible, AppState, VetovoimaColor, APP_NAME};
+use crate::app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, APP_NAME};
 
 const BUTTON_COLOR: Color = VetovoimaColor::BLUEISH_DARK;
 const BUTTON_COLOR_HOVER: Color = VetovoimaColor::BLUEISH_MID;
 const BUTTON_ACTIVE_COLOR: Color = VetovoimaColor::BLUEISH_LIGHT;
-static NEW_GAME_BUTTON_LABEL: &str = "New game";
-static EXIT_BUTTON_LABEL: &str = "Exit";
+static NEW_GAME_BUTTON_LABEL: &str = "New game (joystick button)";
+static EXIT_BUTTON_LABEL: &str = "Exit (left front button)";
 
 #[derive(Component)]
 pub enum MenuEvent {
@@ -36,7 +36,7 @@ impl Plugin for MainMenuPlugin {
             .add_system_set(
                 SystemSet::on_update(AppState::InMenu)
                     .with_system(menu_button_state)
-                    .with_system(menu_button_event),
+                    .with_system(menu_input_event),
             )
             .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu));
     }
@@ -97,7 +97,7 @@ fn show_menu(
             menu_node
                 .spawn_bundle(ButtonBundle {
                     style: Style {
-                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
+                        size: Size::new(Val::Px(720.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         margin: Rect::all(Val::Px(10.0)),
@@ -125,7 +125,7 @@ fn show_menu(
             menu_node
                 .spawn_bundle(ButtonBundle {
                     style: Style {
-                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
+                        size: Size::new(Val::Px(720.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         margin: Rect::all(Val::Px(10.0)),
@@ -178,8 +178,9 @@ fn menu_button_state(
     }
 }
 
-fn menu_button_event(
+fn menu_input_event(
     interaction_query: Query<(&Interaction, &MenuButton), (Changed<Interaction>, With<Button>)>,
+    button_press: Res<ButtonPress>,
     mut app_state: ResMut<State<AppState>>,
     mut menu_event: EventWriter<MenuEvent>,
     mut exit: EventWriter<AppExit>,
@@ -197,5 +198,15 @@ fn menu_button_event(
                 MenuButton::Exit => exit.send(AppExit),
             }
         }
+    }
+
+    if button_press.select_pressed {
+        exit.send(AppExit)
+    } else if button_press.main_control_pressed {
+        menu_event.send(MenuEvent::BeginNewGame);
+
+        app_state
+            .set(AppState::InitGame)
+            .expect("Could not start the game")
     }
 }

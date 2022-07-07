@@ -12,6 +12,17 @@ pub enum AppState {
     GameOver,
 }
 
+#[derive(Component, Clone, Debug, Default)]
+pub struct ButtonPress {
+    pub select_pressed: bool,
+    pub start_pressed: bool,
+    pub main_control_pressed: bool,
+    pub left_pressed: bool,
+    pub right_pressed: bool,
+    pub up_pressed: bool,
+    pub down_pressed: bool,
+}
+
 pub enum VetovoimaColor {}
 
 impl VetovoimaColor {

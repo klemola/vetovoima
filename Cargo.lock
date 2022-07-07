@@ -207,6 +207,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy-rust-arcade"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "074a87437e9d9b41ad506bd996b0c43dbc890fff8755205ef7186b212644b619"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_animation"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3386,6 +3395,7 @@ name = "vetovoima"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy-rust-arcade",
  "bevy_kira_audio",
  "bevy_prototype_lyon",
  "bevy_rapier2d",

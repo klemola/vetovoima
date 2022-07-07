@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::ExternalForce;
 
-use crate::app::PIXELS_PER_METER;
+use crate::app::{ButtonPress, PIXELS_PER_METER};
 
 pub const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
 const GRAVITY_FORCE_SCALE: f32 = 750.0 * GRAVITY_SOURCE_RADIUS_METERS;
@@ -66,8 +66,12 @@ fn validate_requirement(requirement: bool, description: &str) {
 pub fn update_gravity(
     mut gravity_source: ResMut<GravitySource>,
     timer: Res<Time>,
+    button_press: Res<ButtonPress>,
     keyboard_input: Res<Input<KeyCode>>,
 ) {
+    let up_pressed = keyboard_input.pressed(KeyCode::Up) || button_press.up_pressed;
+    let down_pressed = keyboard_input.pressed(KeyCode::Down) || button_press.down_pressed;
+
     let force_change = if gravity_source.auto_cycle {
         let increment = timer.delta_seconds() / 2.0;
 
@@ -78,9 +82,9 @@ pub fn update_gravity(
     } else {
         let increment = 0.04;
 
-        if keyboard_input.pressed(KeyCode::Up) {
+        if up_pressed {
             -increment
-        } else if keyboard_input.pressed(KeyCode::Down) {
+        } else if down_pressed {
             increment
         } else {
             0.0
