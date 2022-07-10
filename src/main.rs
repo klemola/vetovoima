@@ -5,7 +5,12 @@ mod game_over;
 mod main_menu;
 mod simulation;
 
-use bevy::{prelude::*, render::camera::ScalingMode, window::WindowMode};
+use bevy::{
+    ecs::event::Events,
+    prelude::*,
+    render::camera::{Camera2d, ScalingMode},
+    window::{WindowMode, WindowResized},
+};
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rust_arcade::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 
@@ -40,22 +45,18 @@ fn main() {
         .add_startup_system(app_setup)
         .add_system(app_controls)
         .add_system(update_button_input)
+        .add_system(window_resize)
         .run();
 }
 
 fn app_setup(mut commands: Commands, window: Res<Windows>) {
     let window = window.primary();
-    let render_height = if window.mode() == WindowMode::Windowed {
-        window.requested_height() / 2.0
-    } else {
-        let logical_height = window.physical_height() as f64 / 2.0;
-        (logical_height / window.backend_scale_factor()) as f32
-    };
+    let projection_scale = window_to_projection_scale(window, None);
 
     let mut game_camera = OrthographicCameraBundle::new_2d();
 
     game_camera.orthographic_projection.scaling_mode = ScalingMode::FixedVertical;
-    game_camera.orthographic_projection.scale = render_height;
+    game_camera.orthographic_projection.scale = projection_scale;
 
     commands.spawn_bundle(game_camera);
     commands.spawn_bundle(UiCameraBundle::default());
@@ -103,4 +104,30 @@ fn update_button_input(
             _ => (),
         }
     }
+}
+
+fn window_resize(
+    resize_event: Res<Events<WindowResized>>,
+    window: Res<Windows>,
+    mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
+) {
+    let mut reader = resize_event.get_reader();
+    for event in reader.iter(&resize_event) {
+        for mut projection in query.iter_mut() {
+            let window = window.primary();
+            let projection_scale = window_to_projection_scale(window, Some(event.height));
+
+            projection.scale = projection_scale;
+        }
+    }
+}
+
+fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> f32 {
+    let height = if window.mode() == WindowMode::Windowed {
+        height_override.unwrap_or_else(|| window.requested_height())
+    } else {
+        height_override.unwrap_or_else(|| window.height() as f32)
+    };
+
+    height / 2.0
 }
