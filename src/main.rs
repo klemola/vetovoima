@@ -5,7 +5,7 @@ mod game_over;
 mod main_menu;
 mod simulation;
 
-use bevy::{prelude::*, window::WindowMode};
+use bevy::{prelude::*, render::camera::ScalingMode, window::WindowMode};
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rust_arcade::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 
@@ -23,8 +23,6 @@ fn main() {
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
             mode: WindowMode::Fullscreen,
-            width: 1280.0,
-            height: 1024.0,
             ..default()
         })
         .insert_resource(ButtonPress::default())
@@ -45,8 +43,21 @@ fn main() {
         .run();
 }
 
-fn app_setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+fn app_setup(mut commands: Commands, window: Res<Windows>) {
+    let window = window.primary();
+    let render_height = if window.mode() == WindowMode::Windowed {
+        window.requested_height() / 2.0
+    } else {
+        let logical_height = window.physical_height() as f64 / 2.0;
+        (logical_height / window.backend_scale_factor()) as f32
+    };
+
+    let mut game_camera = OrthographicCameraBundle::new_2d();
+
+    game_camera.orthographic_projection.scaling_mode = ScalingMode::FixedVertical;
+    game_camera.orthographic_projection.scale = render_height;
+
+    commands.spawn_bundle(game_camera);
     commands.spawn_bundle(UiCameraBundle::default());
 }
 

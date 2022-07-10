@@ -570,7 +570,7 @@ fn game_ui_cleanup(mut commands: Commands, ui_query: Query<Entity, With<GameUI>>
 
 fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 36.0;
+    let font_size = 42.0;
 
     commands
         .spawn_bundle(NodeBundle {
@@ -762,9 +762,9 @@ fn countdown_text_update(
                 (dur_secs - elapsed).ceil()
             };
             let (text_color, font_size) = if time_remaining <= 5.0 {
-                (VetovoimaColor::REDDISH, 48.0)
+                (VetovoimaColor::REDDISH, 64.0)
             } else {
-                (VetovoimaColor::BLACKISH, 36.0)
+                (VetovoimaColor::BLACKISH, 42.0)
             };
 
             let countdown_text_seconds = &mut countdown_text.sections[0];
