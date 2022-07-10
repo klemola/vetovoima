@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 pub static APP_NAME: &str = "vetovoima";
-pub const PIXELS_PER_METER: f32 = 12.0;
+pub const PIXELS_PER_METER: f32 = 16.0;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum AppState {
