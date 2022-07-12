@@ -27,7 +27,9 @@ fn main() {
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
-            mode: WindowMode::Fullscreen,
+            width: 1280.0,
+            height:1024.0,
+            mode: WindowMode::SizedFullscreen, 
             ..default()
         })
         .insert_resource(ButtonPress::default())
