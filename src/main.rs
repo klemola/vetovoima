@@ -30,8 +30,9 @@ fn main() {
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
             width: 1280.0,
-            height:1024.0,
-            mode: WindowMode::SizedFullscreen, 
+            height: 1024.0,
+            mode: WindowMode::SizedFullscreen,
+            resizable: false,
             ..default()
         })
         .insert_resource(ButtonPress::default())
@@ -131,7 +132,7 @@ fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> 
     let height = if window.mode() == WindowMode::Windowed {
         height_override.unwrap_or_else(|| window.requested_height())
     } else {
-        height_override.unwrap_or_else(|| window.height() as f32)
+        window.height()
     };
 
     height / 2.0
