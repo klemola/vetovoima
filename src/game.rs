@@ -26,6 +26,15 @@ const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
 const BASE_OBJECTS_AMOUNT: u32 = 16;
 const MAX_OBJECTS_AMOUNT: u32 = 60;
 
+const LOADING_TIMER_DURATION_SECONDS: f32 = 3.0;
+
+pub enum GameEvent {
+    CountdownTick(u32),
+    ReachGoal,
+    GameOver,
+    LevelStart,
+}
+
 #[derive(Component, Clone, Debug)]
 struct GameLevel {
     n: u32,
@@ -104,6 +113,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
+            .add_event::<GameEvent>()
             .add_system_set(
                 SystemSet::on_enter(AppState::InitGame)
                     .with_system(init_game)
@@ -118,7 +128,9 @@ impl Plugin for GamePlugin {
             .add_system_set(
                 SystemSet::on_update(AppState::LoadingLevel).with_system(loading_update),
             )
-            .add_system_set(SystemSet::on_exit(AppState::LoadingLevel).with_system(loading_cleanup))
+            .add_system_set(
+                SystemSet::on_exit(AppState::LoadingLevel).with_system(loading_finished_effects),
+            )
             .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(game_ui_setup))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
@@ -229,7 +241,7 @@ fn game_setup(
 }
 
 fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let loading_timer = Timer::from_seconds(2.0, false);
+    let loading_timer = Timer::from_seconds(LOADING_TIMER_DURATION_SECONDS, false);
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 100.0;
 
@@ -639,15 +651,17 @@ fn loading_update(
     }
 }
 
-fn loading_cleanup(
+fn loading_finished_effects(
     mut commands: Commands,
     loading_screen_query: Query<Entity, With<LoadingScreen>>,
+    mut game_event: EventWriter<GameEvent>,
 ) {
     let loading_screen = loading_screen_query
         .get_single()
-        .expect("Loading screen doesn't exist whilel loading a level!");
+        .expect("Loading screen doesn't exist while loading a level!");
 
     commands.entity(loading_screen).despawn_recursive();
+    game_event.send(GameEvent::LevelStart);
 }
 
 fn update_player_velocity(
@@ -700,6 +714,7 @@ fn update_player_velocity(
 fn check_goal_reached(
     player_query: Query<(&Transform, &Collider), With<Player>>,
     flag_query: Query<Entity, With<Flag>>,
+    mut game_event: EventWriter<GameEvent>,
     mut app_state: ResMut<State<AppState>>,
     rapier_context: Res<RapierContext>,
 ) {
@@ -721,9 +736,12 @@ fn check_goal_reached(
                 entity.id() == flag_id
             }),
             |_| {
+                game_event.send(GameEvent::ReachGoal);
+
                 app_state
                     .set(AppState::LoadingLevel)
                     .expect("Could not change the level upon reaching the goal");
+
                 true
             },
         );
@@ -733,14 +751,23 @@ fn check_goal_reached(
 fn update_game_over_countdown(
     mut game_level: ResMut<GameLevel>,
     mut app_state: ResMut<State<AppState>>,
+    mut game_event: EventWriter<GameEvent>,
     time: Res<Time>,
 ) {
+    let time_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
+
     game_level.countdown_to_game_over.tick(time.delta());
 
+    let next_time_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
+
     if game_level.countdown_to_game_over.finished() {
+        game_event.send(GameEvent::GameOver);
+
         app_state
             .set(AppState::GameOver)
             .expect("Could not transition to game over state");
+    } else if next_time_remaining != time_remaining {
+        game_event.send(GameEvent::CountdownTick(next_time_remaining));
     }
 }
 
@@ -751,14 +778,8 @@ fn countdown_text_update(
     match text_query.get_single_mut() {
         Err(_) => {}
         Ok(mut countdown_text) => {
-            let dur_secs = game_level.countdown_to_game_over.duration().as_secs_f64();
-            let elapsed = game_level.countdown_to_game_over.elapsed().as_secs_f64();
-            let time_remaining = if game_level.countdown_to_game_over.finished() {
-                0.0
-            } else {
-                (dur_secs - elapsed).ceil()
-            };
-            let (text_color, font_size) = if time_remaining <= 5.0 {
+            let seconds_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
+            let (text_color, font_size) = if seconds_remaining <= 5 {
                 (VetovoimaColor::REDDISH, 48.0)
             } else {
                 (VetovoimaColor::BLACKISH, 36.0)
@@ -768,7 +789,7 @@ fn countdown_text_update(
 
             countdown_text_seconds.style.color = text_color;
             countdown_text_seconds.style.font_size = font_size;
-            countdown_text_seconds.value = format!("{}", time_remaining);
+            countdown_text_seconds.value = format!("{}", seconds_remaining);
         }
     }
 }
@@ -815,5 +836,16 @@ fn update_gravity_visuals(
         ring.0 = next_radius;
         *path = ShapePath::build_as(&next_shape);
         *draw_mode = next_draw_mode;
+    }
+}
+
+fn timer_to_secs_remaining(timer: &Timer) -> u32 {
+    let dur_secs = timer.duration().as_secs_f64();
+    let elapsed = timer.elapsed().as_secs_f64();
+
+    if timer.finished() {
+        0
+    } else {
+        (dur_secs - elapsed).ceil() as u32
     }
 }

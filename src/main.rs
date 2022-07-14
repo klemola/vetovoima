@@ -4,6 +4,7 @@ mod game;
 mod game_over;
 mod main_menu;
 mod simulation;
+mod sounds;
 
 use bevy::{prelude::*, window::WindowMode};
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
@@ -14,6 +15,7 @@ use game::GamePlugin;
 use game_over::GameOverPlugin;
 use main_menu::MainMenuPlugin;
 use simulation::SimulationPlugin;
+use sounds::SoundsPlugin;
 
 fn main() {
     App::new()
@@ -30,6 +32,7 @@ fn main() {
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             PIXELS_PER_METER,
         ))
+        .add_plugin(SoundsPlugin)
         .add_plugin(MainMenuPlugin)
         .add_plugin(SimulationPlugin)
         .add_plugin(GamePlugin)

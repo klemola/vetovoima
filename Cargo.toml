@@ -19,6 +19,7 @@ default = [
   "bevy/render",
   "bevy/png",
   "bevy/x11",
+  "bevy_kira_audio/ogg",
 ]
 
 dev = [
@@ -27,6 +28,7 @@ dev = [
 
 [dependencies]
 bevy = "0.7"
+bevy_kira_audio = "0.10.0"
 bevy_prototype_lyon = "0.5"
 bevy_rapier2d = {version = "0.15.0", features = ["simd-stable", "debug-render"]}
 rand = "0.8.5"
