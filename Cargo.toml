@@ -28,6 +28,6 @@ dev = [
 [dependencies]
 bevy = "0.7"
 bevy_prototype_lyon = "0.5"
-bevy_rapier2d = {version = "0.13.2", features = ["simd-stable", "debug-render"]}
+bevy_rapier2d = {version = "0.15.0", features = ["simd-stable", "debug-render"]}
 rand = "0.8.5"
 rand_distr = "0.4.3"

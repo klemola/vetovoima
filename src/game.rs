@@ -530,11 +530,11 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
             player_extent_x / 2.0,
             player_extent_y / 2.0,
         ))
-        .insert(MassProperties {
+        .insert(AdditionalMassProperties::MassProperties(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
-            mass: 100.0,
-            principal_inertia: 0.2,
-        })
+            mass: 0.3,
+            principal_inertia: 0.0,
+        }))
         .insert(Restitution::coefficient(0.1))
         .insert(GravityScale(0.0))
         .insert(ExternalForce {
@@ -711,15 +711,15 @@ fn check_goal_reached(
             player_transform.translation.y,
         );
         let (_, player_angle) = player_transform.rotation.to_axis_angle();
-        let groups = InteractionGroups::all();
         let flag_id = flag_entity.id();
 
         rapier_context.intersections_with_shape(
             shape_pos,
             player_angle,
             player_shape,
-            groups,
-            Some(&|entity: Entity| entity.id() == flag_id),
+            QueryFilter::predicate(QueryFilter::only_fixed(), &|entity: Entity| {
+                entity.id() == flag_id
+            }),
             |_| {
                 app_state
                     .set(AppState::LoadingLevel)
