@@ -9,6 +9,12 @@ static NEW_GAME_BUTTON_LABEL: &str = "New game";
 static EXIT_BUTTON_LABEL: &str = "Exit";
 
 #[derive(Component)]
+pub enum MenuEvent {
+    EnterMenu,
+    BeginNewGame,
+}
+
+#[derive(Component)]
 enum MenuButton {
     NewGame,
     Exit,
@@ -21,23 +27,30 @@ pub struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
-            SystemSet::on_enter(AppState::InMenu)
-                .with_system(show_menu)
-                .with_system(cursor_visible::<true>),
-        )
-        .add_system_set(
-            SystemSet::on_update(AppState::InMenu)
-                .with_system(menu_button_state)
-                .with_system(menu_button_event),
-        )
-        .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu));
+        app.add_event::<MenuEvent>()
+            .add_system_set(
+                SystemSet::on_enter(AppState::InMenu)
+                    .with_system(show_menu)
+                    .with_system(cursor_visible::<true>),
+            )
+            .add_system_set(
+                SystemSet::on_update(AppState::InMenu)
+                    .with_system(menu_button_state)
+                    .with_system(menu_button_event),
+            )
+            .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu));
     }
 }
 
-fn show_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn show_menu(
+    mut commands: Commands,
+    mut menu_event: EventWriter<MenuEvent>,
+    asset_server: Res<AssetServer>,
+) {
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 64.0;
+
+    menu_event.send(MenuEvent::EnterMenu);
 
     commands
         .spawn_bundle(NodeBundle {
@@ -168,14 +181,19 @@ fn menu_button_state(
 fn menu_button_event(
     interaction_query: Query<(&Interaction, &MenuButton), (Changed<Interaction>, With<Button>)>,
     mut app_state: ResMut<State<AppState>>,
+    mut menu_event: EventWriter<MenuEvent>,
     mut exit: EventWriter<AppExit>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Clicked {
             match button {
-                MenuButton::NewGame => app_state
-                    .set(AppState::InitGame)
-                    .expect("Could not start the game"),
+                MenuButton::NewGame => {
+                    menu_event.send(MenuEvent::BeginNewGame);
+
+                    app_state
+                        .set(AppState::InitGame)
+                        .expect("Could not start the game")
+                }
                 MenuButton::Exit => exit.send(AppExit),
             }
         }
