@@ -12,8 +12,8 @@ struct Sounds {
     countdown_very_low: Handle<AudioSource>,
     reach_goal: Handle<AudioSource>,
     game_over: Handle<AudioSource>,
-    gravity_quarter: Handle<AudioSource>,
-    gravity_eight: Handle<AudioSource>,
+    tick_slow: Handle<AudioSource>,
+    tick_fast: Handle<AudioSource>,
 }
 
 impl Plugin for SoundsPlugin {
@@ -27,13 +27,13 @@ impl Plugin for SoundsPlugin {
 
 fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Sounds {
-        menu_music: asset_server.load("sounds/g_quarter.ogg"),
-        new_game: asset_server.load("sounds/reach_goal.ogg"),
+        menu_music: asset_server.load("sounds/tick_slow.ogg"),
+        new_game: asset_server.load("sounds/new_game.ogg"),
         countdown_very_low: asset_server.load("sounds/cd_very_low.ogg"),
         reach_goal: asset_server.load("sounds/reach_goal.ogg"),
         game_over: asset_server.load("sounds/cd_very_low.ogg"),
-        gravity_quarter: asset_server.load("sounds/g_quarter.ogg"),
-        gravity_eight: asset_server.load("sounds/g_eight.ogg"),
+        tick_slow: asset_server.load("sounds/tick_slow.ogg"),
+        tick_fast: asset_server.load("sounds/tick_fast.ogg"),
     })
 }
 
@@ -46,11 +46,13 @@ fn process_menu_events(
         match event {
             MenuEvent::EnterMenu => {
                 audio.stop();
+                audio.set_volume(1.0);
                 audio.play_looped(sounds.menu_music.clone());
             }
 
             MenuEvent::BeginNewGame => {
                 audio.stop();
+                audio.set_volume(1.0);
                 audio.play(sounds.new_game.clone());
             }
         }
@@ -69,11 +71,13 @@ fn process_game_events(
                     match *elapsed_secs {
                         20 => {
                             audio.stop();
-                            audio.play_looped(sounds.gravity_eight.clone());
+                            audio.set_volume(0.6);
+                            audio.play_looped(sounds.tick_fast.clone());
                         }
 
                         1..=5 => {
                             audio.stop();
+                            audio.set_volume(1.0);
                             audio.play(sounds.countdown_very_low.clone());
                         }
                         _ => (),
@@ -83,16 +87,19 @@ fn process_game_events(
 
             GameEvent::ReachGoal => {
                 audio.stop();
+                audio.set_volume(1.0);
                 audio.play(sounds.reach_goal.clone());
             }
 
             GameEvent::GameOver => {
                 audio.stop();
+                audio.set_volume(1.0);
                 audio.play(sounds.game_over.clone());
             }
 
             GameEvent::LevelStart => {
-                audio.play_looped(sounds.gravity_quarter.clone());
+                audio.set_volume(0.6);
+                audio.play_looped(sounds.tick_slow.clone());
             }
         };
     }
