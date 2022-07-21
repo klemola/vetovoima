@@ -69,7 +69,7 @@ fn process_game_events(
             GameEvent::CountdownTick(elapsed_secs) => {
                 if *elapsed_secs > 0 {
                     match *elapsed_secs {
-                        20 => {
+                        15 => {
                             audio.stop();
                             audio.set_volume(0.6);
                             audio.play_looped(sounds.tick_fast.clone());
@@ -77,7 +77,7 @@ fn process_game_events(
 
                         1..=5 => {
                             audio.stop();
-                            audio.set_volume(1.0);
+                            audio.set_volume(0.75);
                             audio.play(sounds.countdown_very_low.clone());
                         }
                         _ => (),
