@@ -30,8 +30,8 @@ fn main() {
         .insert_resource(WindowDescriptor {
             title: APP_NAME.into(),
             width: 1280.0,
-            height: 1024.0,
-            mode: WindowMode::SizedFullscreen,
+            height: 720.0,
+            mode: WindowMode::Windowed,
             resizable: false,
             ..default()
         })
