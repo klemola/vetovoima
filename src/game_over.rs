@@ -53,16 +53,12 @@ fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>)
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                text: Text::with_section(
+                text: Text::from_section(
                     "GAME OVER",
                     TextStyle {
                         font,
                         font_size,
                         color: VetovoimaColor::REDDISH,
-                    },
-                    TextAlignment {
-                        horizontal: HorizontalAlign::Center,
-                        ..default()
                     },
                 ),
                 ..default()

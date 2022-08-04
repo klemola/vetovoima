@@ -1,6 +1,9 @@
 use bevy::{app::AppExit, prelude::*};
 
-use crate::app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, APP_NAME};
+use crate::{
+    app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, APP_NAME},
+    game::GameLevel,
+};
 
 const BUTTON_COLOR: Color = VetovoimaColor::BLUEISH_DARK;
 const BUTTON_COLOR_HOVER: Color = VetovoimaColor::BLUEISH_MID;
@@ -41,7 +44,8 @@ impl Plugin for MainMenuPlugin {
                 SystemSet::on_update(AppState::InMenu)
                     .with_system(mouse_interaction)
                     .with_system(selected_button_change)
-                    .with_system(button_press),
+                    .with_system(button_press)
+                    .with_system(init_game),
             )
             .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu));
     }
@@ -66,7 +70,7 @@ fn show_menu(
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::ColumnReverse,
-                padding: Rect::all(Val::Px(10.0)),
+                padding: UiRect::all(Val::Px(10.0)),
                 ..Default::default()
             },
             color: VetovoimaColor::BLACKISH.into(),
@@ -80,7 +84,7 @@ fn show_menu(
                         size: Size::new(Val::Px(600.0), Val::Px(120.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: Rect::all(Val::Px(20.0)),
+                        margin: UiRect::all(Val::Px(20.0)),
                         ..default()
                     },
                     color: VetovoimaColor::BLACKISH.into(),
@@ -88,14 +92,13 @@ fn show_menu(
                 })
                 .with_children(|parent| {
                     parent.spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             APP_NAME,
                             TextStyle {
                                 font: font.clone(),
                                 font_size: font_size * 1.6,
                                 color: VetovoimaColor::WHITEISH,
                             },
-                            Default::default(),
                         ),
                         ..default()
                     });
@@ -107,7 +110,7 @@ fn show_menu(
                         size: Size::new(Val::Px(400.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: Rect::all(Val::Px(10.0)),
+                        margin: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
                     color: BUTTON_COLOR.into(),
@@ -115,14 +118,13 @@ fn show_menu(
                 })
                 .with_children(|parent| {
                     parent.spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             NEW_GAME_BUTTON_LABEL,
                             TextStyle {
                                 font: font.clone(),
                                 font_size,
                                 color: VetovoimaColor::WHITEISH,
                             },
-                            Default::default(),
                         ),
                         ..default()
                     });
@@ -135,7 +137,7 @@ fn show_menu(
                         size: Size::new(Val::Px(400.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: Rect::all(Val::Px(10.0)),
+                        margin: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
                     color: BUTTON_COLOR.into(),
@@ -143,14 +145,13 @@ fn show_menu(
                 })
                 .with_children(|parent| {
                     parent.spawn_bundle(TextBundle {
-                        text: Text::with_section(
+                        text: Text::from_section(
                             EXIT_BUTTON_LABEL,
                             TextStyle {
                                 font,
                                 font_size,
                                 color: VetovoimaColor::WHITEISH,
                             },
-                            Default::default(),
                         ),
                         ..default()
                     });
@@ -170,7 +171,6 @@ fn mouse_interaction(
         (Changed<Interaction>, With<MenuButton>),
     >,
     selected_button: Res<SelectedButton>,
-    mut app_state: ResMut<State<AppState>>,
     mut menu_event: EventWriter<MenuEvent>,
     mut exit: EventWriter<AppExit>,
 ) {
@@ -180,13 +180,7 @@ fn mouse_interaction(
                 *color = BUTTON_ACTIVE_COLOR.into();
 
                 match button {
-                    MenuButton::NewGame => {
-                        menu_event.send(MenuEvent::BeginNewGame);
-
-                        app_state
-                            .set(AppState::InitGame)
-                            .expect("Could not start the game")
-                    }
+                    MenuButton::NewGame => menu_event.send(MenuEvent::BeginNewGame),
                     MenuButton::Exit => exit.send(AppExit),
                 };
             }
@@ -222,7 +216,6 @@ fn selected_button_change(
 fn button_press(
     button_press: Res<ButtonPress>,
     mut selected_button: ResMut<SelectedButton>,
-    mut app_state: ResMut<State<AppState>>,
     mut menu_event: EventWriter<MenuEvent>,
     mut exit: EventWriter<AppExit>,
 ) {
@@ -232,14 +225,7 @@ fn button_press(
 
     if button_press.main_control_pressed {
         match selected_button.0 {
-            Some(MenuButton::NewGame) => {
-                menu_event.send(MenuEvent::BeginNewGame);
-
-                app_state
-                    .set(AppState::InitGame)
-                    .expect("Could not start the game")
-            }
-
+            Some(MenuButton::NewGame) => menu_event.send(MenuEvent::BeginNewGame),
             Some(MenuButton::Exit) => exit.send(AppExit),
 
             _ => (),
@@ -260,5 +246,27 @@ fn select_next_button(selected_button: Option<MenuButton>) -> MenuButton {
         }
 
         None => MenuButton::NewGame,
+    }
+}
+
+fn init_game(
+    mut commands: Commands,
+    mut menu_event: EventReader<MenuEvent>,
+    mut app_state: ResMut<State<AppState>>,
+) {
+    // Effectively resets the game (start from level 1)
+
+    for event in menu_event.iter() {
+        match event {
+            MenuEvent::BeginNewGame => {
+                commands.remove_resource::<GameLevel>();
+
+                app_state
+                    .set(AppState::LoadingLevel)
+                    .expect("Tried to load the first level, but failed");
+            }
+
+            _ => (),
+        }
     }
 }

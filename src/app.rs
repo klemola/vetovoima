@@ -6,7 +6,6 @@ pub const PIXELS_PER_METER: f32 = 12.0;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum AppState {
     InMenu,
-    InitGame,
     LoadingLevel,
     InGame,
     GameOver,

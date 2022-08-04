@@ -36,7 +36,7 @@ pub enum GameEvent {
 }
 
 #[derive(Component, Clone, Debug)]
-struct GameLevel {
+pub struct GameLevel {
     n: u32,
     countdown_to_game_over: Timer,
     terrain_vertices: Vec<Vec2>,
@@ -115,13 +115,8 @@ impl Plugin for GamePlugin {
         app.add_plugin(ShapePlugin)
             .add_event::<GameEvent>()
             .add_system_set(
-                SystemSet::on_enter(AppState::InitGame)
-                    .with_system(init_game)
-                    .with_system(game_cleanup)
-                    .with_system(cursor_visible::<false>),
-            )
-            .add_system_set(
                 SystemSet::on_enter(AppState::LoadingLevel)
+                    .with_system(cursor_visible::<false>)
                     .with_system(game_setup)
                     .with_system(loading_screen_setup),
             )
@@ -203,14 +198,6 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
         terrain_vertices: vec![elevation_vertices.clone(), rim_vertices].concat(),
         elevation_vertices,
     }
-}
-
-fn init_game(mut commands: Commands, mut app_state: ResMut<State<AppState>>) {
-    // Effectively resets the game (start from level 1)
-    commands.remove_resource::<GameLevel>();
-    app_state
-        .set(AppState::LoadingLevel)
-        .expect("Tried to load the first level, but failed");
 }
 
 fn game_cleanup(mut commands: Commands, game_object_query: Query<Entity, With<GameObject>>) {
@@ -604,16 +591,12 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         justify_content: JustifyContent::Center,
                         ..default()
                     },
-                    text: Text::with_section(
+                    text: Text::from_section(
                         "",
                         TextStyle {
                             font,
                             font_size,
                             color: VetovoimaColor::BLACKISH,
-                        },
-                        TextAlignment {
-                            horizontal: HorizontalAlign::Center,
-                            vertical: VerticalAlign::Center,
                         },
                     ),
 

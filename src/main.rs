@@ -5,17 +5,19 @@ mod game_over;
 mod main_menu;
 mod simulation;
 mod sounds;
+// Temporary local version of the "bevy-rust-arcade" crate to avoid Bevy version mismatch
+mod arcade_cabinet;
 
 use bevy::{
     ecs::event::Events,
     prelude::*,
-    render::camera::{Camera2d, ScalingMode},
+    render::camera::ScalingMode,
     window::{WindowMode, WindowResized},
 };
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rust_arcade::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 
 use app::{AppState, ButtonPress, VetovoimaColor, APP_NAME, PIXELS_PER_METER};
+use arcade_cabinet::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 use devtools::DevTools;
 use game::GamePlugin;
 use game_over::GameOverPlugin;
@@ -59,13 +61,12 @@ fn app_setup(mut commands: Commands, window: Res<Windows>) {
     let window = window.primary();
     let projection_scale = window_to_projection_scale(window, None);
 
-    let mut game_camera = OrthographicCameraBundle::new_2d();
+    let mut game_camera = Camera2dBundle::default();
 
-    game_camera.orthographic_projection.scaling_mode = ScalingMode::FixedVertical;
-    game_camera.orthographic_projection.scale = projection_scale;
+    game_camera.projection.scaling_mode = ScalingMode::FixedVertical(2.0);
+    game_camera.projection.scale = projection_scale;
 
     commands.spawn_bundle(game_camera);
-    commands.spawn_bundle(UiCameraBundle::default());
 }
 
 fn app_controls(

@@ -54,7 +54,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(10.0),
                     left: Val::Px(10.0),
                     ..default()
@@ -90,7 +90,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(34.0),
                     left: Val::Px(10.0),
                     ..default()
@@ -126,7 +126,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn_bundle(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(58.0),
                     left: Val::Px(10.0),
                     ..default()
