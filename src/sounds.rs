@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use bevy_kira_audio::{Audio, AudioPlugin, AudioSource};
+use bevy_kira_audio::{Audio, AudioControl, AudioPlugin, AudioSource};
 
 use crate::{game::GameEvent, main_menu::MenuEvent};
 
 pub struct SoundsPlugin;
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 struct Sounds {
     menu_music: Handle<AudioSource>,
     new_game: Handle<AudioSource>,
@@ -47,7 +47,7 @@ fn process_menu_events(
             MenuEvent::EnterMenu => {
                 audio.stop();
                 audio.set_volume(1.0);
-                audio.play_looped(sounds.menu_music.clone());
+                audio.play(sounds.menu_music.clone()).looped();
             }
 
             MenuEvent::BeginNewGame => {
@@ -72,7 +72,7 @@ fn process_game_events(
                         15 => {
                             audio.stop();
                             audio.set_volume(0.6);
-                            audio.play_looped(sounds.tick_fast.clone());
+                            audio.play(sounds.tick_fast.clone()).looped();
                         }
 
                         1..=5 => {
@@ -99,7 +99,7 @@ fn process_game_events(
 
             GameEvent::LevelStart => {
                 audio.set_volume(0.6);
-                audio.play_looped(sounds.tick_slow.clone());
+                audio.play(sounds.tick_slow.clone()).looped();
             }
         };
     }

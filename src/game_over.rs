@@ -5,7 +5,7 @@ use crate::app::{AppState, VetovoimaColor};
 
 const GAME_OVER_SCREEN_SHOW_DURATION_SECONDS: u64 = 5;
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 struct GameOverScreen(Timer);
 
 #[derive(Component)]
@@ -30,25 +30,25 @@ impl Plugin for GameOverPlugin {
 fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(GameOverScreen(Timer::new(
         Duration::from_secs(GAME_OVER_SCREEN_SHOW_DURATION_SECONDS),
-        false,
+        TimerMode::Once,
     )));
 
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 100.0;
 
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: VetovoimaColor::BLACKISH.into(),
+            background_color: VetovoimaColor::BLACKISH.into(),
             ..default()
         })
         .with_children(|container| {
-            container.spawn_bundle(TextBundle {
+            container.spawn(TextBundle {
                 style: Style {
                     align_items: AlignItems::Center,
                     ..default()

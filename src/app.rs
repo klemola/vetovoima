@@ -11,7 +11,7 @@ pub enum AppState {
     GameOver,
 }
 
-#[derive(Component, Clone, Debug, Default)]
+#[derive(Component, Clone, Debug, Default, Resource)]
 pub struct ButtonPress {
     pub select_pressed: bool,
     pub start_pressed: bool,

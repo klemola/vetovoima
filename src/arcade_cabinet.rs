@@ -42,7 +42,7 @@ fn input_events_system(
 ) {
     for event in gamepad_event.iter() {
         match &event.event_type {
-            GamepadEventType::Connected => {
+            GamepadEventType::Connected(_) => {
                 info!("{:?} Connected", &event.gamepad);
             }
             GamepadEventType::Disconnected => {

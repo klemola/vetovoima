@@ -29,16 +29,18 @@ fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
-        .insert_resource(WindowDescriptor {
-            title: APP_NAME.into(),
-            width: 1280.0,
-            height: 720.0,
-            mode: WindowMode::Windowed,
-            resizable: false,
-            ..default()
-        })
         .insert_resource(ButtonPress::default())
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: APP_NAME.into(),
+                width: 1280.0,
+                height: 720.0,
+                mode: WindowMode::Windowed,
+                resizable: false,
+                ..default()
+            },
+            ..default()
+        }))
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             PIXELS_PER_METER,
         ))
@@ -66,7 +68,7 @@ fn app_setup(mut commands: Commands, window: Res<Windows>) {
     game_camera.projection.scaling_mode = ScalingMode::FixedVertical(2.0);
     game_camera.projection.scale = projection_scale;
 
-    commands.spawn_bundle(game_camera);
+    commands.spawn(game_camera);
 }
 
 fn app_controls(

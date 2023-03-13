@@ -26,7 +26,7 @@ enum MenuButton {
 #[derive(Component)]
 struct MainMenu;
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 struct SelectedButton(Option<MenuButton>);
 
 pub struct MainMenuPlugin;
@@ -64,22 +64,22 @@ fn show_menu(
     menu_event.send(MenuEvent::EnterMenu);
 
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                flex_direction: FlexDirection::ColumnReverse,
+                flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(10.0)),
                 ..Default::default()
             },
-            color: VetovoimaColor::BLACKISH.into(),
+            background_color: VetovoimaColor::BLACKISH.into(),
             ..Default::default()
         })
         .insert(MainMenu)
         .with_children(|menu_node| {
             menu_node
-                .spawn_bundle(NodeBundle {
+                .spawn(NodeBundle {
                     style: Style {
                         size: Size::new(Val::Px(600.0), Val::Px(120.0)),
                         justify_content: JustifyContent::Center,
@@ -87,11 +87,11 @@ fn show_menu(
                         margin: UiRect::all(Val::Px(20.0)),
                         ..default()
                     },
-                    color: VetovoimaColor::BLACKISH.into(),
+                    background_color: VetovoimaColor::BLACKISH.into(),
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle {
+                    parent.spawn(TextBundle {
                         text: Text::from_section(
                             APP_NAME,
                             TextStyle {
@@ -105,7 +105,7 @@ fn show_menu(
                 });
 
             menu_node
-                .spawn_bundle(ButtonBundle {
+                .spawn(ButtonBundle {
                     style: Style {
                         size: Size::new(Val::Px(400.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
@@ -113,11 +113,11 @@ fn show_menu(
                         margin: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
-                    color: BUTTON_COLOR.into(),
+                    background_color: BUTTON_COLOR.into(),
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle {
+                    parent.spawn(TextBundle {
                         text: Text::from_section(
                             NEW_GAME_BUTTON_LABEL,
                             TextStyle {
@@ -132,7 +132,7 @@ fn show_menu(
                 .insert(MenuButton::NewGame);
 
             menu_node
-                .spawn_bundle(ButtonBundle {
+                .spawn(ButtonBundle {
                     style: Style {
                         size: Size::new(Val::Px(400.0), Val::Px(80.0)),
                         justify_content: JustifyContent::Center,
@@ -140,11 +140,11 @@ fn show_menu(
                         margin: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
-                    color: BUTTON_COLOR.into(),
+                    background_color: BUTTON_COLOR.into(),
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle {
+                    parent.spawn(TextBundle {
                         text: Text::from_section(
                             EXIT_BUTTON_LABEL,
                             TextStyle {
@@ -167,7 +167,7 @@ fn hide_menu(mut commands: Commands, menu: Query<Entity, With<MainMenu>>) {
 
 fn mouse_interaction(
     mut interaction_query: Query<
-        (&Interaction, &MenuButton, &mut UiColor),
+        (&Interaction, &MenuButton, &mut BackgroundColor),
         (Changed<Interaction>, With<MenuButton>),
     >,
     selected_button: Res<SelectedButton>,
@@ -199,7 +199,7 @@ fn mouse_interaction(
 }
 
 fn selected_button_change(
-    mut menu_buttons_query: Query<(&MenuButton, &mut UiColor)>,
+    mut menu_buttons_query: Query<(&MenuButton, &mut BackgroundColor)>,
     selected_button: Res<SelectedButton>,
 ) {
     if selected_button.is_changed() {

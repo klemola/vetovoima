@@ -10,7 +10,7 @@ const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
 const GRAVITY_AUTO_CYCLE_ENABLED_DEFAULT: bool = false;
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 pub struct GravitySource {
     pub force: f32,
     cycle: Attraction,

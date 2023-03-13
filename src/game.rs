@@ -35,7 +35,7 @@ pub enum GameEvent {
     LevelStart,
 }
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Resource)]
 pub struct GameLevel {
     n: u32,
     countdown_to_game_over: Timer,
@@ -81,7 +81,7 @@ impl Distribution<ObjectDensity> for Standard {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 struct LoadingState(Timer);
 
 #[derive(Component)]
@@ -194,7 +194,7 @@ fn create_game_level(current_level_value: u32) -> GameLevel {
 
     GameLevel {
         n: next_level_n,
-        countdown_to_game_over: Timer::new(Duration::from_secs(countdown), false),
+        countdown_to_game_over: Timer::new(Duration::from_secs(countdown), TimerMode::Once),
         terrain_vertices: vec![elevation_vertices.clone(), rim_vertices].concat(),
         elevation_vertices,
     }
@@ -228,26 +228,26 @@ fn game_setup(
 }
 
 fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let loading_timer = Timer::from_seconds(LOADING_TIMER_DURATION_SECONDS, false);
+    let loading_timer = Timer::from_seconds(LOADING_TIMER_DURATION_SECONDS, TimerMode::Once);
     let font = asset_server.load("VT323-Regular.ttf");
     let font_size = 100.0;
 
     commands.insert_resource(LoadingState(loading_timer));
 
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: VetovoimaColor::BLACKISH.into(),
+            background_color: VetovoimaColor::BLACKISH.into(),
             ..default()
         })
         .with_children(|container| {
             container
-                .spawn_bundle(TextBundle {
+                .spawn(TextBundle {
                     style: Style {
                         align_items: AlignItems::Center,
                         ..default()
@@ -287,7 +287,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     };
 
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
+        .spawn(GeometryBuilder::build_as(
             level_shape,
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
                 VetovoimaColor::WHITEISH,
@@ -308,7 +308,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     };
 
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
+        .spawn(GeometryBuilder::build_as(
             &gravity_source_shape,
             DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
                 VetovoimaColor::WHITEISH,
@@ -331,7 +331,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         let radius = ring_frequency * n_f;
 
         commands
-            .spawn_bundle(GeometryBuilder::build_as(
+            .spawn(GeometryBuilder::build_as(
                 &shapes::Circle {
                     radius,
                     center: Vec2::ZERO,
@@ -390,7 +390,7 @@ fn spawn_object(
     };
 
     commands
-        .spawn_bundle(shape_bundle)
+        .spawn(shape_bundle)
         .insert(GameObject)
         .insert(Attractable)
         .insert(RigidBody::Dynamic)
@@ -481,7 +481,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y);
 
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
+        .spawn(GeometryBuilder::build_as(
             &shapes::Rectangle {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
@@ -511,7 +511,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y);
 
     commands
-        .spawn_bundle(GeometryBuilder::build_as(
+        .spawn(GeometryBuilder::build_as(
             &shapes::Rectangle {
                 extents: Vec2::new(player_extent_x, player_extent_y),
                 origin: RectangleOrigin::Center,
@@ -572,20 +572,20 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font_size = 36.0;
 
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            color: Color::NONE.into(),
+            background_color: Color::NONE.into(),
             ..default()
         })
         .insert(GameUI)
         .with_children(|container| {
             container
-                .spawn_bundle(TextBundle {
+                .spawn(TextBundle {
                     style: Style {
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
@@ -712,14 +712,14 @@ fn check_goal_reached(
             player_transform.translation.y,
         );
         let (_, player_angle) = player_transform.rotation.to_axis_angle();
-        let flag_id = flag_entity.id();
+        let flag_id = flag_entity.index();
 
         rapier_context.intersections_with_shape(
             shape_pos,
             player_angle,
             player_shape,
             QueryFilter::predicate(QueryFilter::only_fixed(), &|entity: Entity| {
-                entity.id() == flag_id
+                entity.index() == flag_id
             }),
             |_| {
                 game_event.send(GameEvent::ReachGoal);

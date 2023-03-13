@@ -34,15 +34,15 @@ impl Plugin for DebugOutputPlugin {
 pub struct DevTools;
 
 impl PluginGroup for DevTools {
-    fn build(&mut self, group: &mut PluginGroupBuilder) {
+    fn build(self) -> PluginGroupBuilder {
         match env::var("DEV_TOOLS") {
-            Result::Ok(value) if value == *"1" => group
+            Result::Ok(value) if value == *"1" => PluginGroupBuilder::start::<Self>()
                 .add(RapierDebugRenderPlugin::default())
                 .add(FrameTimeDiagnosticsPlugin::default())
                 .add(DebugOutputPlugin::default()),
 
-            _ => group,
-        };
+            _ => PluginGroupBuilder::start::<Self>(),
+        }
     }
 }
 
@@ -51,11 +51,11 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font_size = 24.0;
 
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: UiRect {
-                    top: Val::Px(10.0),
+                    bottom: Val::Px(58.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -87,11 +87,11 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(FpsText);
 
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: UiRect {
-                    top: Val::Px(34.0),
+                    bottom: Val::Px(34.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
@@ -123,11 +123,11 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(GravityText);
 
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
                 position: UiRect {
-                    top: Val::Px(58.0),
+                    bottom: Val::Px(10.0),
                     left: Val::Px(10.0),
                     ..default()
                 },
