@@ -1,10 +1,11 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 
 pub static APP_NAME: &str = "vetovoima";
 pub const PIXELS_PER_METER: f32 = 12.0;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 pub enum AppState {
+    #[default]
     InMenu,
     LoadingLevel,
     InGame,
@@ -35,8 +36,8 @@ impl VetovoimaColor {
     pub const GREENISH: Color = Color::hsl(150.0, 1.0, 0.66);
 }
 
-pub fn cursor_visible<const VISIBILITY: bool>(mut windows: ResMut<Windows>) {
-    let window = windows.get_primary_mut().unwrap();
+pub fn cursor_visible<const VISIBILITY: bool>(mut window: Query<&mut Window, With<PrimaryWindow>>) {
+    let mut window = window.get_single_mut().unwrap();
 
-    window.set_cursor_visibility(VISIBILITY);
+    window.cursor.visible = VISIBILITY;
 }

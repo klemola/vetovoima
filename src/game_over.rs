@@ -15,15 +15,9 @@ pub struct GameOverPlugin;
 
 impl Plugin for GameOverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
-            SystemSet::on_enter(AppState::GameOver).with_system(gameover_screen_setup),
-        )
-        .add_system_set(
-            SystemSet::on_update(AppState::GameOver).with_system(gameover_screen_update),
-        )
-        .add_system_set(
-            SystemSet::on_exit(AppState::GameOver).with_system(gameover_screen_cleanup),
-        );
+        app.add_system(gameover_screen_setup.in_schedule(OnEnter(AppState::GameOver)))
+            .add_system(gameover_screen_update.in_set(OnUpdate(AppState::GameOver)))
+            .add_system(gameover_screen_cleanup.in_schedule(OnExit(AppState::GameOver)));
     }
 }
 
@@ -80,14 +74,12 @@ fn gameover_screen_cleanup(
 
 fn gameover_screen_update(
     mut game_over_screen: ResMut<GameOverScreen>,
-    mut app_state: ResMut<State<AppState>>,
+    mut app_state: ResMut<NextState<AppState>>,
     time: Res<Time>,
 ) {
     game_over_screen.0.tick(time.delta());
 
     if game_over_screen.0.finished() {
-        app_state
-            .set(AppState::InMenu)
-            .expect("Could not transition to the menu");
+        app_state.set(AppState::InMenu);
     }
 }

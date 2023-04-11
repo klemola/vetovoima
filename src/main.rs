@@ -10,9 +10,10 @@ mod arcade_cabinet;
 
 use bevy::{
     ecs::event::Events,
+    input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
     render::camera::ScalingMode,
-    window::{WindowMode, WindowResized},
+    window::{PrimaryWindow, WindowMode, WindowResized, WindowResolution},
 };
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 
@@ -27,18 +28,18 @@ use sounds::SoundsPlugin;
 
 fn main() {
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(ButtonPress::default())
+        .add_state::<AppState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: APP_NAME.into(),
-                width: 1280.0,
-                height: 720.0,
+                resolution: WindowResolution::new(1280.0, 720.0),
                 mode: WindowMode::Windowed,
                 resizable: false,
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
@@ -51,16 +52,18 @@ fn main() {
         .add_plugin(GamePlugin)
         .add_plugin(GameOverPlugin)
         .add_plugins(DevTools)
-        .add_state(AppState::InMenu)
         .add_startup_system(app_setup)
         .add_system(app_controls)
-        .add_system(update_button_input)
+        .add_system(keyboard_input)
+        .add_system(arcade_input)
         .add_system(window_resize)
         .run();
 }
 
-fn app_setup(mut commands: Commands, window: Res<Windows>) {
-    let window = window.primary();
+fn app_setup(mut commands: Commands, primary_window: Query<&Window, With<PrimaryWindow>>) {
+    let Ok(window) = primary_window.get_single() else {
+        return;
+    };
     let projection_scale = window_to_projection_scale(window, None);
 
     let mut game_camera = Camera2dBundle::default();
@@ -74,21 +77,19 @@ fn app_setup(mut commands: Commands, window: Res<Windows>) {
 fn app_controls(
     mut keyboard_input: ResMut<Input<KeyCode>>,
     button_press: Res<ButtonPress>,
-    mut app_state: ResMut<State<AppState>>,
+    app_state: ResMut<State<AppState>>,
+    mut next_app_state: ResMut<NextState<AppState>>,
 ) {
     let should_go_to_menu =
         keyboard_input.just_released(KeyCode::Escape) || button_press.start_pressed;
 
-    if should_go_to_menu && app_state.current() != &AppState::InMenu {
-        app_state
-            .set(AppState::InMenu)
-            .expect("Could show the main menu");
-
+    if should_go_to_menu && app_state.0 != AppState::InMenu {
+        next_app_state.set(AppState::InMenu);
         keyboard_input.reset(KeyCode::Escape);
     }
 }
 
-fn update_button_input(
+fn arcade_input(
     mut arcade_input_events: EventReader<ArcadeInputEvent>,
     mut button_press: ResMut<ButtonPress>,
 ) {
@@ -115,15 +116,37 @@ fn update_button_input(
     }
 }
 
+fn keyboard_input(
+    mut keyboard_events: EventReader<KeyboardInput>,
+    mut button_press: ResMut<ButtonPress>,
+) {
+    for event in keyboard_events.iter() {
+        let is_pressed = ButtonState::is_pressed(&event.state);
+
+        match event.key_code {
+            Some(KeyCode::Up) => button_press.up_pressed = is_pressed,
+            Some(KeyCode::Down) => button_press.down_pressed = is_pressed,
+            Some(KeyCode::Left) => button_press.left_pressed = is_pressed,
+            Some(KeyCode::Right) => button_press.right_pressed = is_pressed,
+            Some(KeyCode::Return) => button_press.main_control_pressed = is_pressed,
+            Some(KeyCode::Escape) => button_press.select_pressed = is_pressed,
+
+            _ => (),
+        }
+    }
+}
+
 fn window_resize(
     resize_event: Res<Events<WindowResized>>,
-    window: Res<Windows>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
     mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
 ) {
     let mut reader = resize_event.get_reader();
     for event in reader.iter(&resize_event) {
         for mut projection in query.iter_mut() {
-            let window = window.primary();
+            let Ok(window) = primary_window.get_single() else {
+                return;
+            };
             let projection_scale = window_to_projection_scale(window, Some(event.height));
 
             projection.scale = projection_scale;
@@ -132,8 +155,8 @@ fn window_resize(
 }
 
 fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> f32 {
-    let height = if window.mode() == WindowMode::Windowed {
-        height_override.unwrap_or_else(|| window.requested_height())
+    let height = if window.mode == WindowMode::Windowed {
+        height_override.unwrap_or_else(|| window.height())
     } else {
         window.height()
     };

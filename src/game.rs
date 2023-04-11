@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::plugin::RapierContext;
 use bevy_rapier2d::prelude::*;
@@ -110,38 +109,32 @@ struct GameOverCountdownText;
 
 pub struct GamePlugin;
 
+// cursor_visible::<false>
+
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
             .add_event::<GameEvent>()
-            .add_system_set(
-                SystemSet::on_enter(AppState::LoadingLevel)
-                    .with_system(cursor_visible::<false>)
-                    .with_system(game_setup)
-                    .with_system(loading_screen_setup),
+            .add_systems(
+                (cursor_visible::<false>, loading_screen_setup, game_setup)
+                    .in_schedule(OnEnter(AppState::LoadingLevel)),
             )
-            .add_system_set(
-                SystemSet::on_update(AppState::LoadingLevel).with_system(loading_update),
+            .add_system(loading_update.in_set(OnUpdate(AppState::LoadingLevel)))
+            .add_system(loading_finished_effects.in_schedule(OnExit(AppState::LoadingLevel)))
+            .add_system(game_ui_setup.in_schedule(OnEnter(AppState::InGame)))
+            .add_systems(
+                (
+                    update_gravity,
+                    apply_forces,
+                    update_player_velocity,
+                    check_goal_reached,
+                    update_game_over_countdown,
+                    countdown_text_update,
+                    update_gravity_visuals,
+                )
+                    .in_set(OnUpdate(AppState::InGame)),
             )
-            .add_system_set(
-                SystemSet::on_exit(AppState::LoadingLevel).with_system(loading_finished_effects),
-            )
-            .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(game_ui_setup))
-            .add_system_set(
-                SystemSet::on_update(AppState::InGame)
-                    .with_system(update_gravity)
-                    .with_system(apply_forces)
-                    .with_system(update_player_velocity)
-                    .with_system(check_goal_reached)
-                    .with_system(update_game_over_countdown)
-                    .with_system(countdown_text_update)
-                    .with_system(update_gravity_visuals),
-            )
-            .add_system_set(
-                SystemSet::on_exit(AppState::InGame)
-                    .with_system(game_cleanup)
-                    .with_system(game_ui_cleanup),
-            );
+            .add_systems((game_cleanup, game_ui_cleanup).in_schedule(OnExit(AppState::InGame)));
     }
 }
 
@@ -287,14 +280,15 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     };
 
     commands
-        .spawn(GeometryBuilder::build_as(
-            level_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
-                VetovoimaColor::WHITEISH,
-            )),
-            Transform::default(),
-        ))
+        .spawn(ShapeBundle {
+            path: GeometryBuilder::build_as(level_shape),
+            ..Default::default()
+        })
         .insert(GameObject)
+        .insert(Fill {
+            options: FillOptions::default(),
+            color: VetovoimaColor::WHITEISH,
+        })
         .insert(Collider::polyline(
             game_level.elevation_vertices.clone(),
             None,
@@ -308,14 +302,15 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     };
 
     commands
-        .spawn(GeometryBuilder::build_as(
-            &gravity_source_shape,
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
-                VetovoimaColor::WHITEISH,
-            )),
-            Transform::default(),
-        ))
+        .spawn(ShapeBundle {
+            path: GeometryBuilder::build_as(&gravity_source_shape),
+            ..Default::default()
+        })
         .insert(GameObject)
+        .insert(Fill {
+            options: FillOptions::DEFAULT,
+            color: VetovoimaColor::WHITEISH,
+        })
         .insert(RigidBody::Fixed)
         .insert(Collider::ball(gravity_source_radius_pixels))
         .insert(Restitution::coefficient(0.1));
@@ -331,18 +326,15 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         let radius = ring_frequency * n_f;
 
         commands
-            .spawn(GeometryBuilder::build_as(
-                &shapes::Circle {
-                    radius,
-                    center: Vec2::ZERO,
-                },
-                DrawMode::Stroke(StrokeMode {
-                    options: StrokeOptions::DEFAULT,
-                    // Start with an invisible ring, the correct color will be set in the update system
-                    color: Color::hsla(0.0, 1.0, 1.0, 0.0),
-                }),
-                Transform::default(),
-            ))
+            .spawn(GeometryBuilder::build_as(&shapes::Circle {
+                radius,
+                center: Vec2::ZERO,
+            }))
+            .insert(Stroke {
+                options: StrokeOptions::DEFAULT,
+                // Start with an invisible ring, the correct color will be set in the update system
+                color: Color::hsla(0.0, 1.0, 1.0, 0.0),
+            })
             .insert(GravityRing(radius))
             .insert(GameObject);
     }
@@ -384,13 +376,21 @@ fn spawn_object(
     };
     let scale_variation: f32 = thread_rng().gen_range(-0.2..0.4);
     let scale_factor = (base_scale_factor + (base_scale_factor * scale_variation)).max(1.0);
-    let (shape_bundle, collider, restitution_coefficient) = match kind {
-        ObjectKind::Ngon => ngon_props(transform, scale_factor, color),
-        ObjectKind::Circle => circle_props(transform, scale_factor, color),
+    let (path, collider, restitution_coefficient) = match kind {
+        ObjectKind::Ngon => ngon_props(scale_factor),
+        ObjectKind::Circle => circle_props(scale_factor),
     };
 
     commands
-        .spawn(shape_bundle)
+        .spawn(ShapeBundle {
+            path,
+            transform,
+            ..Default::default()
+        })
+        .insert(Fill {
+            options: FillOptions::default(),
+            color: color,
+        })
         .insert(GameObject)
         .insert(Attractable)
         .insert(RigidBody::Dynamic)
@@ -404,11 +404,7 @@ fn spawn_object(
         });
 }
 
-fn ngon_props(
-    transform: Transform,
-    scale_factor: f32,
-    color: Color,
-) -> (ShapeBundle, Collider, f32) {
+fn ngon_props(scale_factor: f32) -> (Path, Collider, f32) {
     let base_radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
     let full_turn_radians = 2.0 * PI;
     let std_deviation = 1.3;
@@ -432,40 +428,24 @@ fn ngon_props(
         points: ngon_vertices.clone(),
         closed: true,
     };
-
-    let shape_bundle = GeometryBuilder::build_as(
-        &shape,
-        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
-        transform,
-    );
-
+    let path = GeometryBuilder::build_as(&shape);
     let collider =
         Collider::convex_hull(&ngon_vertices).unwrap_or_else(|| Collider::ball(base_radius));
 
-    (shape_bundle, collider, 0.1)
+    (path, collider, 0.1)
 }
 
-fn circle_props(
-    transform: Transform,
-    scale_factor: f32,
-    color: Color,
-) -> (ShapeBundle, Collider, f32) {
+fn circle_props(scale_factor: f32) -> (Path, Collider, f32) {
     let radius: f32 = 0.5 * scale_factor * PIXELS_PER_METER;
 
     let shape = shapes::Circle {
         radius,
         center: Vec2::ZERO,
     };
-
-    let shape_bundle = GeometryBuilder::build_as(
-        &shape,
-        DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(color)),
-        transform,
-    );
-
+    let path = GeometryBuilder::build_as(&shape);
     let collider = Collider::ball(radius);
 
-    (shape_bundle, collider, 1.0)
+    (path, collider, 1.0)
 }
 
 fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
@@ -481,17 +461,19 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y);
 
     commands
-        .spawn(GeometryBuilder::build_as(
-            &shapes::Rectangle {
+        .spawn(ShapeBundle {
+            path: GeometryBuilder::build_as(&shapes::Rectangle {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
-                VetovoimaColor::BLUEISH_LIGHT,
-            )),
-            flag_transform,
-        ))
+            }),
+            transform: flag_transform,
+            ..Default::default()
+        })
         .insert(GameObject)
+        .insert(Fill {
+            options: FillOptions::default(),
+            color: VetovoimaColor::BLUEISH_LIGHT,
+        })
         .insert(Flag)
         .insert(RigidBody::Fixed)
         .insert(Collider::cuboid(flag_extent_x / 1.8, flag_extent_y / 2.0))
@@ -511,17 +493,19 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y);
 
     commands
-        .spawn(GeometryBuilder::build_as(
-            &shapes::Rectangle {
+        .spawn(ShapeBundle {
+            path: GeometryBuilder::build_as(&shapes::Rectangle {
                 extents: Vec2::new(player_extent_x, player_extent_y),
                 origin: RectangleOrigin::Center,
-            },
-            DrawMode::Fill(bevy_prototype_lyon::prelude::FillMode::color(
-                VetovoimaColor::YELLOWISH,
-            )),
-            player_transform,
-        ))
+            }),
+            transform: player_transform,
+            ..Default::default()
+        })
         .insert(GameObject)
+        .insert(Fill {
+            options: FillOptions::default(),
+            color: VetovoimaColor::YELLOWISH,
+        })
         .insert(Attractable)
         .insert(Player)
         .insert(RigidBody::Dynamic)
@@ -610,7 +594,7 @@ fn loading_update(
     mut commands: Commands,
     mut level_text_query: Query<&mut Text, With<LoadingLevelText>>,
     mut loading: ResMut<LoadingState>,
-    mut app_state: ResMut<State<AppState>>,
+    mut app_state: ResMut<NextState<AppState>>,
     game_level: Option<Res<GameLevel>>,
     time: Res<Time>,
 ) {
@@ -628,9 +612,7 @@ fn loading_update(
 
     if loading.0.finished() {
         commands.remove_resource::<LoadingState>();
-        app_state
-            .set(AppState::InGame)
-            .expect("Tried to enter the game from loading, but failed");
+        app_state.set(AppState::InGame);
     }
 }
 
@@ -650,7 +632,6 @@ fn loading_finished_effects(
 fn update_player_velocity(
     mut velocities: Query<(&mut Velocity, &Transform), With<Player>>,
     button_press: Res<ButtonPress>,
-    keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
 ) {
     match velocities.get_single_mut() {
@@ -658,18 +639,14 @@ fn update_player_velocity(
             // The player has not been spawned yet (or the level might be changing)
         }
         Ok((mut vel, transform)) => {
-            let left_pressed = keyboard_input.pressed(KeyCode::Left) || button_press.left_pressed;
-            let right_pressed =
-                keyboard_input.pressed(KeyCode::Right) || button_press.right_pressed;
-
             let forward = transform.local_x();
             let forward_dir = Vec2::new(forward.x, forward.y);
             let current_velocity = (vel.linvel * forward_dir).length();
             let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
-            let intensity = if left_pressed && negative_velocity == 0.0 {
+            let intensity = if button_press.left_pressed && negative_velocity == 0.0 {
                 // Slow down until the player halts
                 PLAYER_SLOW_DOWN_VELOCITY
-            } else if right_pressed && current_velocity < PLAYER_MAX_FORWARD_VELOCITY {
+            } else if button_press.right_pressed && current_velocity < PLAYER_MAX_FORWARD_VELOCITY {
                 // Accelerate in the forward direction
                 PLAYER_MAX_FORWARD_VELOCITY
             } else {
@@ -701,7 +678,7 @@ fn check_goal_reached(
     player_query: Query<(&Transform, &Collider), With<Player>>,
     flag_query: Query<Entity, With<Flag>>,
     mut game_event: EventWriter<GameEvent>,
-    mut app_state: ResMut<State<AppState>>,
+    mut app_state: ResMut<NextState<AppState>>,
     rapier_context: Res<RapierContext>,
 ) {
     if let (Ok((player_transform, player_shape)), Ok(flag_entity)) =
@@ -723,10 +700,7 @@ fn check_goal_reached(
             }),
             |_| {
                 game_event.send(GameEvent::ReachGoal);
-
-                app_state
-                    .set(AppState::LoadingLevel)
-                    .expect("Could not change the level upon reaching the goal");
+                app_state.set(AppState::LoadingLevel);
 
                 true
             },
@@ -736,7 +710,7 @@ fn check_goal_reached(
 
 fn update_game_over_countdown(
     mut game_level: ResMut<GameLevel>,
-    mut app_state: ResMut<State<AppState>>,
+    mut app_state: ResMut<NextState<AppState>>,
     mut game_event: EventWriter<GameEvent>,
     time: Res<Time>,
 ) {
@@ -748,10 +722,7 @@ fn update_game_over_countdown(
 
     if game_level.countdown_to_game_over.finished() {
         game_event.send(GameEvent::GameOver);
-
-        app_state
-            .set(AppState::GameOver)
-            .expect("Could not transition to game over state");
+        app_state.set(AppState::GameOver);
     } else if next_time_remaining != time_remaining {
         game_event.send(GameEvent::CountdownTick(next_time_remaining));
     }
@@ -781,7 +752,7 @@ fn countdown_text_update(
 }
 
 fn update_gravity_visuals(
-    mut visuals_query: Query<(&mut Path, &mut DrawMode, &mut GravityRing)>,
+    mut visuals_query: Query<(&mut Path, &mut Stroke, &mut GravityRing)>,
     gravity_source: Res<GravitySource>,
 ) {
     let level_bounds_radius_pixels = LEVEL_BOUNDS_RADIUS_METERS * PIXELS_PER_METER;
@@ -790,7 +761,7 @@ fn update_gravity_visuals(
     // fade to nothing just before the ring hits the terrain
     let max_radius = level_bounds_radius_pixels;
 
-    for (mut path, mut draw_mode, mut ring) in visuals_query.iter_mut() {
+    for (mut path, mut stroke, mut ring) in visuals_query.iter_mut() {
         let current_radius = if ring.0 < min_radius {
             max_radius
         } else if ring.0 > max_radius {
@@ -804,7 +775,8 @@ fn update_gravity_visuals(
         let radius_force_ratio = PIXELS_PER_METER / 21.35;
         let next_radius = current_radius + (gravity_source.force * radius_force_ratio);
         // solid when close to the gravity source, transparent when far away
-        let opacity = (1.0 - (next_radius / max_radius)).max(0.0);
+        let opacity_value: f32 = 1.0 - (next_radius / max_radius);
+        let opacity = opacity_value.max(0.0);
         // dimmer when transparent
         let lightness = 0.35 + (opacity / 2.0);
         // a little subdued even when close to the gravity source
@@ -814,14 +786,14 @@ fn update_gravity_visuals(
             radius: next_radius,
             center: Vec2::ZERO,
         };
-        let next_draw_mode = DrawMode::Stroke(StrokeMode {
+        let next_stroke = Stroke {
             options: StrokeOptions::DEFAULT,
             color: Color::hsla(220.0, 1.0, lightness, capped_opacity),
-        });
+        };
 
         ring.0 = next_radius;
         *path = ShapePath::build_as(&next_shape);
-        *draw_mode = next_draw_mode;
+        *stroke = next_stroke;
     }
 }
 

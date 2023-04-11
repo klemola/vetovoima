@@ -16,20 +16,19 @@ lto = true
 [features]
 default = [
   "bevy/bevy_winit",
-  "bevy/render",
   "bevy/png",
   "bevy/x11",
   "bevy_kira_audio/ogg",
 ]
 
 dev = [
-  "bevy/dynamic",
+  "bevy/dynamic_linking",
 ]
 
 [dependencies]
-bevy = "0.9"
-bevy_kira_audio = "0.13.0"
-bevy_prototype_lyon = "0.7"
-bevy_rapier2d = {version = "0.19.0", features = ["simd-stable", "debug-render"]}
+bevy = "0.10.1"
+bevy_kira_audio = "0.15.0"
+bevy_prototype_lyon = "0.8.0"
+bevy_rapier2d = {version = "0.21.0", features = ["simd-stable", "debug-render-2d"]}
 rand = "0.8.5"
 rand_distr = "0.4.3"

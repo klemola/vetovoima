@@ -67,11 +67,7 @@ pub fn update_gravity(
     mut gravity_source: ResMut<GravitySource>,
     timer: Res<Time>,
     button_press: Res<ButtonPress>,
-    keyboard_input: Res<Input<KeyCode>>,
 ) {
-    let up_pressed = keyboard_input.pressed(KeyCode::Up) || button_press.up_pressed;
-    let down_pressed = keyboard_input.pressed(KeyCode::Down) || button_press.down_pressed;
-
     let force_change = if gravity_source.auto_cycle {
         let increment = timer.delta_seconds() / 2.0;
 
@@ -82,9 +78,9 @@ pub fn update_gravity(
     } else {
         let increment = 0.04;
 
-        if up_pressed {
+        if button_press.up_pressed {
             -increment
-        } else if down_pressed {
+        } else if button_press.down_pressed {
             increment
         } else {
             0.0

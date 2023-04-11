@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{input::gamepad::GamepadConnection, input::gamepad::GamepadEvent, prelude::*};
 
 pub struct RustArcadePlugin;
 impl Plugin for RustArcadePlugin {
@@ -41,15 +41,17 @@ fn input_events_system(
     mut arcade_gamepad_event: EventWriter<ArcadeInputEvent>,
 ) {
     for event in gamepad_event.iter() {
-        match &event.event_type {
-            GamepadEventType::Connected(_) => {
-                info!("{:?} Connected", &event.gamepad);
-            }
-            GamepadEventType::Disconnected => {
-                info!("{:?} Disconnected", &event.gamepad);
-            }
-            GamepadEventType::ButtonChanged(button_type, value) => {
-                let arcade_input = match button_type {
+        match &event {
+            GamepadEvent::Connection(connection_event) => match &connection_event.connection {
+                GamepadConnection::Connected(_) => {
+                    info!("{:?} Connected", &connection_event.gamepad)
+                }
+                GamepadConnection::Disconnected => {
+                    info!("{:?} Disconnected", &connection_event.gamepad)
+                }
+            },
+            GamepadEvent::Button(button_event) => {
+                let arcade_input = match button_event.button_type {
                     GamepadButtonType::DPadUp => Some(ArcadeInput::JoyUp),
                     GamepadButtonType::DPadDown => Some(ArcadeInput::JoyDown),
                     GamepadButtonType::DPadLeft => Some(ArcadeInput::JoyLeft),
@@ -70,9 +72,9 @@ fn input_events_system(
 
                 if let Some(arcade_input) = arcade_input {
                     arcade_gamepad_event.send(ArcadeInputEvent {
-                        gamepad: *&event.gamepad,
+                        gamepad: *&button_event.gamepad,
                         arcade_input,
-                        value: *value,
+                        value: button_event.value,
                     });
                 }
             }

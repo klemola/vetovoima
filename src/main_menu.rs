@@ -35,19 +35,17 @@ impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<MenuEvent>()
             .insert_resource(SelectedButton(None))
-            .add_system_set(
-                SystemSet::on_enter(AppState::InMenu)
-                    .with_system(show_menu)
-                    .with_system(cursor_visible::<true>),
+            .add_systems((show_menu, cursor_visible::<true>).in_schedule(OnEnter(AppState::InMenu)))
+            .add_systems(
+                (
+                    mouse_interaction,
+                    selected_button_change,
+                    button_press,
+                    init_game,
+                )
+                    .in_set(OnUpdate(AppState::InMenu)),
             )
-            .add_system_set(
-                SystemSet::on_update(AppState::InMenu)
-                    .with_system(mouse_interaction)
-                    .with_system(selected_button_change)
-                    .with_system(button_press)
-                    .with_system(init_game),
-            )
-            .add_system_set(SystemSet::on_exit(AppState::InMenu).with_system(hide_menu));
+            .add_system(hide_menu.in_schedule(OnExit(AppState::InMenu)));
     }
 }
 
@@ -252,7 +250,7 @@ fn select_next_button(selected_button: Option<MenuButton>) -> MenuButton {
 fn init_game(
     mut commands: Commands,
     mut menu_event: EventReader<MenuEvent>,
-    mut app_state: ResMut<State<AppState>>,
+    mut app_state: ResMut<NextState<AppState>>,
 ) {
     // Effectively resets the game (start from level 1)
 
@@ -260,10 +258,7 @@ fn init_game(
         match event {
             MenuEvent::BeginNewGame => {
                 commands.remove_resource::<GameLevel>();
-
-                app_state
-                    .set(AppState::LoadingLevel)
-                    .expect("Tried to load the first level, but failed");
+                app_state.set(AppState::LoadingLevel);
             }
 
             _ => (),
