@@ -1,9 +1,38 @@
 use bevy::prelude::*;
-use bevy_kira_audio::{Audio, AudioControl, AudioPlugin, AudioSource};
+use bevy_kira_audio::{Audio, AudioApp, AudioChannel, AudioControl, AudioPlugin, AudioSource};
+use std::marker::PhantomData;
 
 use crate::{game::GameEvent, main_menu::MenuEvent};
 
 pub struct SoundsPlugin;
+
+#[derive(Resource)]
+struct ChannelAudioState<T> {
+    stopped: bool,
+    paused: bool,
+    loop_started: bool,
+    volume: f64,
+    _marker: PhantomData<T>,
+}
+
+impl<T> Default for ChannelAudioState<T> {
+    fn default() -> Self {
+        ChannelAudioState {
+            volume: 1.0,
+            stopped: true,
+            loop_started: false,
+            paused: false,
+            _marker: PhantomData::<T>::default(),
+        }
+    }
+}
+
+#[derive(Resource, Component, Default, Clone)]
+struct MainChannel;
+#[derive(Resource, Component, Default, Clone)]
+struct EffectChannel;
+#[derive(Resource, Component, Default, Clone)]
+struct TransitionChannel;
 
 #[derive(Component, Resource)]
 struct Sounds {
@@ -14,18 +43,22 @@ struct Sounds {
     game_over: Handle<AudioSource>,
     tick_slow: Handle<AudioSource>,
     tick_fast: Handle<AudioSource>,
+    bump_low: Handle<AudioSource>,
 }
 
 impl Plugin for SoundsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(AudioPlugin)
-            .add_startup_system(load_assets)
+            .add_startup_system(audio_setup)
             .add_system(process_menu_events)
-            .add_system(process_game_events);
+            .add_system(process_game_events)
+            .add_audio_channel::<MainChannel>()
+            .add_audio_channel::<EffectChannel>()
+            .add_audio_channel::<TransitionChannel>();
     }
 }
 
-fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn audio_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Sounds {
         menu_music: asset_server.load("sounds/tick_slow.ogg"),
         new_game: asset_server.load("sounds/new_game.ogg"),
@@ -34,26 +67,31 @@ fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
         game_over: asset_server.load("sounds/cd_very_low.ogg"),
         tick_slow: asset_server.load("sounds/tick_slow.ogg"),
         tick_fast: asset_server.load("sounds/tick_fast.ogg"),
-    })
+        bump_low: asset_server.load("sounds/bump_low.ogg"),
+    });
+
+    commands.insert_resource(ChannelAudioState::<MainChannel>::default());
+    commands.insert_resource(ChannelAudioState::<EffectChannel>::default());
+    commands.insert_resource(ChannelAudioState::<TransitionChannel>::default());
 }
 
 fn process_menu_events(
     mut menu_event: EventReader<MenuEvent>,
     sounds: Res<Sounds>,
-    audio: Res<Audio>,
+    main_channel: Res<AudioChannel<MainChannel>>,
 ) {
     for event in menu_event.iter() {
         match event {
             MenuEvent::EnterMenu => {
-                audio.stop();
-                audio.set_volume(1.0);
-                audio.play(sounds.menu_music.clone()).looped();
+                main_channel.stop();
+                main_channel.set_volume(1.0);
+                main_channel.play(sounds.menu_music.clone()).looped();
             }
 
             MenuEvent::BeginNewGame => {
-                audio.stop();
-                audio.set_volume(1.0);
-                audio.play(sounds.new_game.clone());
+                main_channel.stop();
+                main_channel.set_volume(1.0);
+                main_channel.play(sounds.new_game.clone());
             }
         }
     }
@@ -62,7 +100,8 @@ fn process_menu_events(
 fn process_game_events(
     mut game_event: EventReader<GameEvent>,
     sounds: Res<Sounds>,
-    audio: Res<Audio>,
+    main_channel: Res<AudioChannel<MainChannel>>,
+    effect_channel: Res<AudioChannel<EffectChannel>>,
 ) {
     for event in game_event.iter() {
         match event {
@@ -70,15 +109,15 @@ fn process_game_events(
                 if *elapsed_secs > 0 {
                     match *elapsed_secs {
                         15 => {
-                            audio.stop();
-                            audio.set_volume(0.6);
-                            audio.play(sounds.tick_fast.clone()).looped();
+                            main_channel.stop();
+                            main_channel.set_volume(0.6);
+                            main_channel.play(sounds.tick_fast.clone()).looped();
                         }
 
                         1..=5 => {
-                            audio.stop();
-                            audio.set_volume(0.75);
-                            audio.play(sounds.countdown_very_low.clone());
+                            main_channel.stop();
+                            main_channel.set_volume(0.75);
+                            main_channel.play(sounds.countdown_very_low.clone());
                         }
                         _ => (),
                     }
@@ -86,20 +125,27 @@ fn process_game_events(
             }
 
             GameEvent::ReachGoal => {
-                audio.stop();
-                audio.set_volume(1.0);
-                audio.play(sounds.reach_goal.clone());
+                main_channel.stop();
+                main_channel.set_volume(1.0);
+                main_channel.play(sounds.reach_goal.clone());
             }
 
             GameEvent::GameOver => {
-                audio.stop();
-                audio.set_volume(1.0);
-                audio.play(sounds.game_over.clone());
+                main_channel.stop();
+                main_channel.set_volume(1.0);
+                main_channel.play(sounds.game_over.clone());
             }
 
             GameEvent::LevelStart => {
-                audio.set_volume(0.6);
-                audio.play(sounds.tick_slow.clone()).looped();
+                main_channel.set_volume(0.6);
+                main_channel.play(sounds.tick_slow.clone()).looped();
+            }
+
+            GameEvent::PlayerCollision => {
+                effect_channel.set_volume(0.35);
+                // TODO: change playback rate by collision frequency
+                effect_channel.set_playback_rate(1.0);
+                effect_channel.play(sounds.bump_low.clone());
             }
         };
     }
