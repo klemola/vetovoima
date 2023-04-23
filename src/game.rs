@@ -4,6 +4,7 @@ use bevy_rapier2d::plugin::RapierContext;
 use bevy_rapier2d::prelude::*;
 use rand::{prelude::*, seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Normal, Standard};
+use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::time::Duration;
 
@@ -32,6 +33,7 @@ pub enum GameEvent {
     ReachGoal,
     GameOver,
     LevelStart,
+    PlayerCollision,
 }
 
 #[derive(Component, Clone, Debug, Resource)]
@@ -107,14 +109,22 @@ struct GameUI;
 #[derive(Component)]
 struct GameOverCountdownText;
 
-pub struct GamePlugin;
+#[derive(Resource)]
+struct PlayerCollision {
+    active_collisions: HashSet<u32>,
+    previous_collision_time: Duration,
+}
 
-// cursor_visible::<false>
+pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
             .add_event::<GameEvent>()
+            .insert_resource(PlayerCollision {
+                active_collisions: HashSet::new(),
+                previous_collision_time: Duration::from_millis(0),
+            })
             .add_systems(
                 (cursor_visible::<false>, loading_screen_setup, game_setup)
                     .in_schedule(OnEnter(AppState::LoadingLevel)),
@@ -128,6 +138,7 @@ impl Plugin for GamePlugin {
                     apply_forces,
                     update_player_velocity,
                     check_goal_reached,
+                    detect_player_collision,
                     update_game_over_countdown,
                     countdown_text_update,
                     update_gravity_visuals,
@@ -513,6 +524,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
             player_extent_x / 2.0,
             player_extent_y / 2.0,
         ))
+        .insert(ActiveEvents::COLLISION_EVENTS)
         .insert(AdditionalMassProperties::MassProperties(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
             mass: 0.3,
@@ -705,6 +717,54 @@ fn check_goal_reached(
                 true
             },
         );
+    }
+}
+
+fn detect_player_collision(
+    mut collision_events: EventReader<CollisionEvent>,
+    mut game_event: EventWriter<GameEvent>,
+    player_query: Query<Entity, With<Player>>,
+    mut player_collision: ResMut<PlayerCollision>,
+    time: Res<Time>,
+) {
+    if let Ok(player_entity) = player_query.get_single() {
+        let player_id = player_entity.index();
+
+        for event in collision_events.iter() {
+            match event {
+                CollisionEvent::Started(entity1, entity2, _flags) => {
+                    let id1 = entity1.index();
+                    let id2 = entity2.index();
+                    let collision_id = if id2 == player_id { id1 } else { id2 };
+                    let elapsed = time.elapsed();
+                    let collision_frequency = elapsed - player_collision.previous_collision_time;
+
+                    player_collision.active_collisions.insert(collision_id);
+                    player_collision.previous_collision_time = elapsed;
+
+                    // Filter collision audio to avoid total chaos
+                    if collision_frequency > Duration::from_millis(150)
+                        && player_collision.active_collisions.len() < 5
+                    {
+                        game_event.send(GameEvent::PlayerCollision);
+                    }
+
+                    println!("START collision event, ids {id1} {id2}");
+                    println!(
+                        "collisions amt {} freq {:?}",
+                        player_collision.active_collisions.len(),
+                        collision_frequency
+                    );
+                }
+                CollisionEvent::Stopped(entity1, entity2, _flags) => {
+                    let id1 = entity1.index();
+                    let id2 = entity2.index();
+                    let collision_id = if id2 == player_id { id1 } else { id2 };
+
+                    player_collision.active_collisions.remove(&collision_id);
+                }
+            }
+        }
     }
 }
 
