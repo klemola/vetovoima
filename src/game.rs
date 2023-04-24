@@ -4,7 +4,6 @@ use bevy_rapier2d::plugin::RapierContext;
 use bevy_rapier2d::prelude::*;
 use rand::{prelude::*, seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Normal, Standard};
-use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::time::Duration;
 
@@ -30,10 +29,10 @@ const LOADING_TIMER_DURATION_SECONDS: f32 = 3.0;
 
 pub enum GameEvent {
     CountdownTick(u32),
-    ReachGoal,
+    GoalReached,
     GameOver,
-    LevelStart,
-    PlayerCollision,
+    LevelStarted,
+    PlayerCollided(Duration, f32),
 }
 
 #[derive(Component, Clone, Debug, Resource)]
@@ -42,6 +41,19 @@ pub struct GameLevel {
     countdown_to_game_over: Timer,
     terrain_vertices: Vec<Vec2>,
     elevation_vertices: Vec<Vec2>,
+}
+
+#[derive(Resource)]
+struct PlayerCollision {
+    previous_collision_time: Duration,
+}
+
+impl Default for PlayerCollision {
+    fn default() -> Self {
+        PlayerCollision {
+            previous_collision_time: Duration::from_millis(0),
+        }
+    }
 }
 
 enum ObjectKind {
@@ -109,22 +121,13 @@ struct GameUI;
 #[derive(Component)]
 struct GameOverCountdownText;
 
-#[derive(Resource)]
-struct PlayerCollision {
-    active_collisions: HashSet<u32>,
-    previous_collision_time: Duration,
-}
-
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ShapePlugin)
             .add_event::<GameEvent>()
-            .insert_resource(PlayerCollision {
-                active_collisions: HashSet::new(),
-                previous_collision_time: Duration::from_millis(0),
-            })
+            .insert_resource(PlayerCollision::default())
             .add_systems(
                 (cursor_visible::<false>, loading_screen_setup, game_setup)
                     .in_schedule(OnEnter(AppState::LoadingLevel)),
@@ -214,6 +217,7 @@ fn game_setup(
     mut commands: Commands,
     game_level: Option<Res<GameLevel>>,
     mut gravity_source: ResMut<GravitySource>,
+    mut player_collision: ResMut<PlayerCollision>,
 ) {
     let current_game_level_n = match game_level {
         Some(level) => level.n,
@@ -221,7 +225,9 @@ fn game_setup(
     };
     let next_game_level = create_game_level(current_game_level_n);
 
+    // Reset some resources
     *gravity_source = GravitySource::default();
+    *player_collision = PlayerCollision::default();
 
     // Will replace the current game level with the next
     commands.insert_resource(next_game_level.clone());
@@ -524,7 +530,8 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
             player_extent_x / 2.0,
             player_extent_y / 2.0,
         ))
-        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(ActiveEvents::CONTACT_FORCE_EVENTS)
+        .insert(ContactForceEventThreshold(225.0))
         .insert(AdditionalMassProperties::MassProperties(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
             mass: 0.3,
@@ -638,7 +645,7 @@ fn loading_finished_effects(
         .expect("Loading screen doesn't exist while loading a level!");
 
     commands.entity(loading_screen).despawn_recursive();
-    game_event.send(GameEvent::LevelStart);
+    game_event.send(GameEvent::LevelStarted);
 }
 
 fn update_player_velocity(
@@ -711,7 +718,7 @@ fn check_goal_reached(
                 entity.index() == flag_id
             }),
             |_| {
-                game_event.send(GameEvent::ReachGoal);
+                game_event.send(GameEvent::GoalReached);
                 app_state.set(AppState::LoadingLevel);
 
                 true
@@ -721,50 +728,28 @@ fn check_goal_reached(
 }
 
 fn detect_player_collision(
-    mut collision_events: EventReader<CollisionEvent>,
+    mut contact_force_events: EventReader<ContactForceEvent>,
     mut game_event: EventWriter<GameEvent>,
-    player_query: Query<Entity, With<Player>>,
     mut player_collision: ResMut<PlayerCollision>,
     time: Res<Time>,
 ) {
-    if let Ok(player_entity) = player_query.get_single() {
-        let player_id = player_entity.index();
+    for event in contact_force_events.iter() {
+        let elapsed = time.elapsed();
+        let time_since_previous_collision = elapsed - player_collision.previous_collision_time;
 
-        for event in collision_events.iter() {
-            match event {
-                CollisionEvent::Started(entity1, entity2, _flags) => {
-                    let id1 = entity1.index();
-                    let id2 = entity2.index();
-                    let collision_id = if id2 == player_id { id1 } else { id2 };
-                    let elapsed = time.elapsed();
-                    let collision_frequency = elapsed - player_collision.previous_collision_time;
+        player_collision.previous_collision_time = elapsed;
 
-                    player_collision.active_collisions.insert(collision_id);
-                    player_collision.previous_collision_time = elapsed;
-
-                    // Filter collision audio to avoid total chaos
-                    if collision_frequency > Duration::from_millis(150)
-                        && player_collision.active_collisions.len() < 5
-                    {
-                        game_event.send(GameEvent::PlayerCollision);
-                    }
-
-                    println!("START collision event, ids {id1} {id2}");
-                    println!(
-                        "collisions amt {} freq {:?}",
-                        player_collision.active_collisions.len(),
-                        collision_frequency
-                    );
-                }
-                CollisionEvent::Stopped(entity1, entity2, _flags) => {
-                    let id1 = entity1.index();
-                    let id2 = entity2.index();
-                    let collision_id = if id2 == player_id { id1 } else { id2 };
-
-                    player_collision.active_collisions.remove(&collision_id);
-                }
-            }
+        if time_since_previous_collision > Duration::from_millis(50) {
+            game_event.send(GameEvent::PlayerCollided(
+                time_since_previous_collision,
+                event.total_force_magnitude,
+            ));
         }
+
+        println!(
+            "contact force event mag {} t {:?}",
+            event.total_force_magnitude, time_since_previous_collision
+        );
     }
 }
 

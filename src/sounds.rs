@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_kira_audio::{Audio, AudioApp, AudioChannel, AudioControl, AudioPlugin, AudioSource};
+use bevy_kira_audio::{AudioApp, AudioChannel, AudioControl, AudioPlugin, AudioSource};
 use std::marker::PhantomData;
 
 use crate::{game::GameEvent, main_menu::MenuEvent};
@@ -124,7 +124,7 @@ fn process_game_events(
                 }
             }
 
-            GameEvent::ReachGoal => {
+            GameEvent::GoalReached => {
                 main_channel.stop();
                 main_channel.set_volume(1.0);
                 main_channel.play(sounds.reach_goal.clone());
@@ -136,15 +136,21 @@ fn process_game_events(
                 main_channel.play(sounds.game_over.clone());
             }
 
-            GameEvent::LevelStart => {
+            GameEvent::LevelStarted => {
                 main_channel.set_volume(0.6);
                 main_channel.play(sounds.tick_slow.clone()).looped();
             }
 
-            GameEvent::PlayerCollision => {
-                effect_channel.set_volume(0.35);
-                // TODO: change playback rate by collision frequency
-                effect_channel.set_playback_rate(1.0);
+            GameEvent::PlayerCollided(time_since_previous_collision, total_force_magnitude) => {
+                let millis: f64 = time_since_previous_collision.as_secs_f64() * 1000.0;
+                let playback_rate_increase = 1.0 - (millis / 200.0).min(1.0);
+                let playback_rate = 1.0 + playback_rate_increase;
+
+                let volume_coefficient = (total_force_magnitude / 750.0).min(1.0);
+                let volume: f64 = 0.5 * volume_coefficient as f64;
+
+                effect_channel.set_volume(volume);
+                effect_channel.set_playback_rate(playback_rate);
                 effect_channel.play(sounds.bump_low.clone());
             }
         };
