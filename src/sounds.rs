@@ -43,7 +43,7 @@ struct Sounds {
     game_over: Handle<AudioSource>,
     tick_slow: Handle<AudioSource>,
     tick_fast: Handle<AudioSource>,
-    bump_low: Handle<AudioSource>,
+    bump: Handle<AudioSource>,
 }
 
 impl Plugin for SoundsPlugin {
@@ -67,7 +67,7 @@ fn audio_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         game_over: asset_server.load("sounds/cd_very_low.ogg"),
         tick_slow: asset_server.load("sounds/tick_slow.ogg"),
         tick_fast: asset_server.load("sounds/tick_fast.ogg"),
-        bump_low: asset_server.load("sounds/bump_low.ogg"),
+        bump: asset_server.load("sounds/bump.ogg"),
     });
 
     commands.insert_resource(ChannelAudioState::<MainChannel>::default());
@@ -151,7 +151,7 @@ fn process_game_events(
 
                 effect_channel.set_volume(volume);
                 effect_channel.set_playback_rate(playback_rate);
-                effect_channel.play(sounds.bump_low.clone());
+                effect_channel.play(sounds.bump.clone());
             }
         };
     }
