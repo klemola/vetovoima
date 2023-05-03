@@ -745,11 +745,6 @@ fn detect_player_collision(
                 event.total_force_magnitude,
             ));
         }
-
-        println!(
-            "contact force event mag {} t {:?}",
-            event.total_force_magnitude, time_since_previous_collision
-        );
     }
 }
 
