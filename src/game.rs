@@ -397,11 +397,12 @@ fn spawn_object(
     density: ObjectDensity,
     transform: Transform,
 ) {
-    let (density_value, base_scale_factor, color) = match density {
-        ObjectDensity::Light => (0.75, 1.0, VetovoimaColor::GREENISH),
-        ObjectDensity::Medium => (1.0, 2.0, VetovoimaColor::REDDISH),
-        ObjectDensity::Heavy => (10.0, 3.2, VetovoimaColor::WHITEISH),
-    };
+    let (density_value, base_scale_factor, color, max_random_force, max_random_torque) =
+        match density {
+            ObjectDensity::Light => (0.75, 1.0, VetovoimaColor::GREENISH, 3.0, 0.3),
+            ObjectDensity::Medium => (1.0, 2.0, VetovoimaColor::REDDISH, 30.0, 1.0),
+            ObjectDensity::Heavy => (10.0, 3.2, VetovoimaColor::WHITEISH, 200.0, 20.0),
+        };
     let scale_variation: f32 = thread_rng().gen_range(-0.2..0.4);
     let scale_factor = (base_scale_factor + (base_scale_factor * scale_variation)).max(1.0);
     let (path, collider, restitution_coefficient) = match kind {
@@ -426,10 +427,7 @@ fn spawn_object(
         ColliderMassProperties::Density(density_value),
         Restitution::coefficient(restitution_coefficient),
         GravityScale(0.0),
-        ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        },
+        random_external_force(max_random_force, max_random_torque),
         CollisionGroups::new(
             DEFAULT_COLLISION_GROUP
                 .memberships
@@ -929,4 +927,16 @@ fn update_ring(
     let next_color = Color::hsla(hue, 1.0, lightness, capped_opacity);
 
     (next_radius, next_color)
+}
+
+fn random_external_force(max_force: f32, max_torque: f32) -> ExternalForce {
+    let mut rng = thread_rng();
+    let force_abs = max_force.abs();
+
+    let x = rng.gen_range(-force_abs..force_abs);
+    let y = rng.gen_range(-force_abs..force_abs);
+    let force: Vec2 = Vec2::new(x, y);
+    let torque = rng.gen_range(0.0..max_torque.abs());
+
+    ExternalForce { force, torque }
 }
