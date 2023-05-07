@@ -27,6 +27,11 @@ const MAX_OBJECTS_AMOUNT: u32 = 60;
 
 const LOADING_TIMER_DURATION_SECONDS: f32 = 3.0;
 
+const DEFAULT_COLLISION_GROUP: CollisionGroups =
+    CollisionGroups::new(Group::GROUP_1, Group::GROUP_1);
+const SECONDARY_COLLISION_GROUP: CollisionGroups =
+    CollisionGroups::new(Group::GROUP_2, Group::GROUP_2);
+
 pub enum GameEvent {
     CountdownTick(u32),
     GoalReached,
@@ -116,6 +121,9 @@ pub struct Player;
 struct Flag;
 
 #[derive(Component)]
+struct FlagAura(f32);
+
+#[derive(Component)]
 struct GameUI;
 
 #[derive(Component)]
@@ -140,6 +148,7 @@ impl Plugin for GamePlugin {
                     update_gravity,
                     apply_forces,
                     update_player_velocity,
+                    update_flag_aura,
                     check_goal_reached,
                     detect_player_collision,
                     update_game_over_countdown,
@@ -296,20 +305,19 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         closed: true,
     };
 
-    commands
-        .spawn(ShapeBundle {
+    commands.spawn((
+        ShapeBundle {
             path: GeometryBuilder::build_as(level_shape),
             ..Default::default()
-        })
-        .insert(GameObject)
-        .insert(Fill {
+        },
+        GameObject,
+        Fill {
             options: FillOptions::default(),
             color: VetovoimaColor::WHITEISH,
-        })
-        .insert(Collider::polyline(
-            game_level.elevation_vertices.clone(),
-            None,
-        ));
+        },
+        Collider::polyline(game_level.elevation_vertices.clone(), None),
+        DEFAULT_COLLISION_GROUP,
+    ));
 
     // Gravity source (as a visual/physics object)
     let gravity_source_radius_pixels = GRAVITY_SOURCE_RADIUS_METERS * PIXELS_PER_METER;
@@ -318,19 +326,21 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         center: Vec2::ZERO,
     };
 
-    commands
-        .spawn(ShapeBundle {
+    commands.spawn((
+        ShapeBundle {
             path: GeometryBuilder::build_as(&gravity_source_shape),
             ..Default::default()
-        })
-        .insert(GameObject)
-        .insert(Fill {
+        },
+        GameObject,
+        Fill {
             options: FillOptions::DEFAULT,
             color: VetovoimaColor::WHITEISH,
-        })
-        .insert(RigidBody::Fixed)
-        .insert(Collider::ball(gravity_source_radius_pixels))
-        .insert(Restitution::coefficient(0.1));
+        },
+        RigidBody::Fixed,
+        Collider::ball(gravity_source_radius_pixels),
+        Restitution::coefficient(0.1),
+        DEFAULT_COLLISION_GROUP,
+    ));
 
     // Gravity force visualization
     let gravity_rings_amount = 6;
@@ -341,19 +351,20 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     for n in 1..=gravity_rings_amount {
         let n_f = n as f32;
         let radius = ring_frequency * n_f;
+        let shape = shapes::Circle {
+            radius,
+            center: Vec2::ZERO,
+        };
 
-        commands
-            .spawn(GeometryBuilder::build_as(&shapes::Circle {
-                radius,
-                center: Vec2::ZERO,
-            }))
-            .insert(Stroke {
-                options: StrokeOptions::DEFAULT,
-                // Start with an invisible ring, the correct color will be set in the update system
-                color: Color::hsla(0.0, 1.0, 1.0, 0.0),
-            })
-            .insert(GravityRing(radius))
-            .insert(GameObject);
+        commands.spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shape),
+                ..Default::default()
+            },
+            Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
+            GravityRing(radius),
+            GameObject,
+        ));
     }
 }
 
@@ -398,27 +409,36 @@ fn spawn_object(
         ObjectKind::Circle => circle_props(scale_factor),
     };
 
-    commands
-        .spawn(ShapeBundle {
+    commands.spawn((
+        ShapeBundle {
             path,
             transform,
             ..Default::default()
-        })
-        .insert(Fill {
+        },
+        Fill {
             options: FillOptions::default(),
             color: color,
-        })
-        .insert(GameObject)
-        .insert(Attractable)
-        .insert(RigidBody::Dynamic)
-        .insert(collider)
-        .insert(ColliderMassProperties::Density(density_value))
-        .insert(Restitution::coefficient(restitution_coefficient))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
+        },
+        GameObject,
+        Attractable,
+        RigidBody::Dynamic,
+        collider,
+        ColliderMassProperties::Density(density_value),
+        Restitution::coefficient(restitution_coefficient),
+        GravityScale(0.0),
+        ExternalForce {
             force: Vec2::ZERO,
             torque: 0.0,
-        });
+        },
+        CollisionGroups::new(
+            DEFAULT_COLLISION_GROUP
+                .memberships
+                .union(SECONDARY_COLLISION_GROUP.memberships),
+            DEFAULT_COLLISION_GROUP
+                .filters
+                .union(SECONDARY_COLLISION_GROUP.filters),
+        ),
+    ));
 }
 
 fn ngon_props(scale_factor: f32) -> (Path, Collider, f32) {
@@ -477,24 +497,47 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .unwrap_or(&Vec2::ZERO);
     let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y);
 
-    commands
-        .spawn(ShapeBundle {
+    commands.spawn((
+        ShapeBundle {
             path: GeometryBuilder::build_as(&shapes::Rectangle {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
             }),
             transform: flag_transform,
             ..Default::default()
-        })
-        .insert(GameObject)
-        .insert(Fill {
+        },
+        GameObject,
+        Fill {
             options: FillOptions::default(),
             color: VetovoimaColor::BLUEISH_LIGHT,
-        })
-        .insert(Flag)
-        .insert(RigidBody::Fixed)
-        .insert(Collider::cuboid(flag_extent_x / 1.8, flag_extent_y / 2.0))
-        .insert(Restitution::coefficient(1.0));
+        },
+        Flag,
+        RigidBody::Fixed,
+        Collider::cuboid(flag_extent_x / 1.8, flag_extent_y / 2.0),
+        Restitution::coefficient(1.0),
+        DEFAULT_COLLISION_GROUP,
+    ));
+
+    // Flag force aura (sweeps gravity objects away from the flag to let the player in)
+    let aura_shape = shapes::Circle {
+        radius: 0.0,
+        center: Vec2::ZERO,
+    };
+
+    commands.spawn((
+        ShapeBundle {
+            path: GeometryBuilder::build_as(&aura_shape),
+            transform: Transform::from_translation(flag_transform.translation),
+            ..Default::default()
+        },
+        Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
+        GameObject,
+        FlagAura(0.0),
+        RigidBody::Fixed,
+        Collider::ball(1.0),
+        Restitution::coefficient(1.0),
+        SECONDARY_COLLISION_GROUP,
+    ));
 
     // "Player"
     let player_extent_x = PLAYER_WIDTH_METERS * PIXELS_PER_METER;
@@ -509,44 +552,43 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .unwrap_or(fallback_anchor);
     let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y);
 
-    commands
-        .spawn(ShapeBundle {
+    commands.spawn((
+        ShapeBundle {
             path: GeometryBuilder::build_as(&shapes::Rectangle {
                 extents: Vec2::new(player_extent_x, player_extent_y),
                 origin: RectangleOrigin::Center,
             }),
             transform: player_transform,
             ..Default::default()
-        })
-        .insert(GameObject)
-        .insert(Fill {
+        },
+        GameObject,
+        Fill {
             options: FillOptions::default(),
             color: VetovoimaColor::YELLOWISH,
-        })
-        .insert(Attractable)
-        .insert(Player)
-        .insert(RigidBody::Dynamic)
-        .insert(Collider::cuboid(
-            player_extent_x / 2.0,
-            player_extent_y / 2.0,
-        ))
-        .insert(ActiveEvents::CONTACT_FORCE_EVENTS)
-        .insert(ContactForceEventThreshold(225.0))
-        .insert(AdditionalMassProperties::MassProperties(MassProperties {
+        },
+        Attractable,
+        Player,
+        RigidBody::Dynamic,
+        Collider::cuboid(player_extent_x / 2.0, player_extent_y / 2.0),
+        ActiveEvents::CONTACT_FORCE_EVENTS,
+        ContactForceEventThreshold(225.0),
+        AdditionalMassProperties::MassProperties(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
             mass: 0.3,
             principal_inertia: 0.0,
-        }))
-        .insert(Restitution::coefficient(0.1))
-        .insert(GravityScale(0.0))
-        .insert(ExternalForce {
+        }),
+        Restitution::coefficient(0.1),
+        GravityScale(0.0),
+        ExternalForce {
             force: Vec2::ZERO,
             torque: 0.0,
-        })
-        .insert(Velocity {
+        },
+        Velocity {
             linvel: Vec2::ZERO,
             angvel: 0.0,
-        });
+        },
+        DEFAULT_COLLISION_GROUP,
+    ));
 }
 
 fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
@@ -693,6 +735,35 @@ fn update_player_velocity(
     }
 }
 
+fn update_flag_aura(mut aura_query: Query<(&mut Path, &mut Stroke, &mut Collider, &mut FlagAura)>) {
+    let min_radius = 0.0;
+    let max_radius = 100.0;
+    let hue = 35.0;
+    let radius_delta = 0.75;
+
+    match aura_query.get_single_mut() {
+        Err(_) => {
+            // Aura should always exist at this phase
+        }
+        Ok((mut path, mut stroke, mut collider, mut aura)) => {
+            let (next_radius, next_color) =
+                update_ring(aura.0, radius_delta, min_radius, max_radius, hue);
+
+            let next_shape = shapes::Circle {
+                radius: next_radius,
+                center: Vec2::ZERO,
+            };
+
+            aura.0 = next_radius;
+            stroke.color = next_color;
+            *path = ShapePath::build_as(&next_shape);
+
+            let next_collider = Collider::ball(next_radius);
+            *collider = next_collider;
+        }
+    }
+}
+
 fn check_goal_reached(
     player_query: Query<(&Transform, &Collider), With<Player>>,
     flag_query: Query<Entity, With<Flag>>,
@@ -800,42 +871,25 @@ fn update_gravity_visuals(
     let min_radius = gravity_source_radius_pixels;
     // fade to nothing just before the ring hits the terrain
     let max_radius = level_bounds_radius_pixels;
+    let radius_force_ratio = PIXELS_PER_METER / 21.35;
+    let radius_delta = gravity_source.force * radius_force_ratio;
+    let hue = 220.0;
 
     for (mut path, mut stroke, mut ring) in visuals_query.iter_mut() {
-        let current_radius = if ring.0 < min_radius {
-            max_radius
-        } else if ring.0 > max_radius {
-            min_radius
-        } else {
-            ring.0
-        };
-
-        // grow or shrink the ring based on gravity force
-        // TODO: consider replacing the magic number with something that's affected by gravity force (scaled)
-        let radius_force_ratio = PIXELS_PER_METER / 21.35;
-        let next_radius = current_radius + (gravity_source.force * radius_force_ratio);
-        // solid when close to the gravity source, transparent when far away
-        let opacity_value: f32 = 1.0 - (next_radius / max_radius);
-        let opacity = opacity_value.max(0.0);
-        // dimmer when transparent
-        let lightness = 0.35 + (opacity / 2.0);
-        // a little subdued even when close to the gravity source
-        let capped_opacity = opacity * 0.8;
-
+        let (next_radius, next_color) =
+            update_ring(ring.0, radius_delta, min_radius, max_radius, hue);
         let next_shape = shapes::Circle {
             radius: next_radius,
             center: Vec2::ZERO,
         };
-        let next_stroke = Stroke {
-            options: StrokeOptions::DEFAULT,
-            color: Color::hsla(220.0, 1.0, lightness, capped_opacity),
-        };
 
         ring.0 = next_radius;
+        stroke.color = next_color;
         *path = ShapePath::build_as(&next_shape);
-        *stroke = next_stroke;
     }
 }
+
+// Helper functions
 
 fn timer_to_secs_remaining(timer: &Timer) -> u32 {
     let dur_secs = timer.duration().as_secs_f64();
@@ -846,4 +900,33 @@ fn timer_to_secs_remaining(timer: &Timer) -> u32 {
     } else {
         (dur_secs - elapsed).ceil() as u32
     }
+}
+
+fn update_ring(
+    current_radius: f32,
+    radius_delta: f32,
+    min_radius: f32,
+    max_radius: f32,
+    hue: f32,
+) -> (f32, Color) {
+    let current_radius = if current_radius < min_radius {
+        max_radius
+    } else if current_radius > max_radius {
+        min_radius
+    } else {
+        current_radius
+    };
+
+    let next_radius = current_radius + radius_delta;
+    // solid when close to the origin, transparent when far away
+    let opacity_value: f32 = 1.0 - (next_radius / max_radius);
+    let opacity = opacity_value.max(0.0);
+    // dimmer when transparent
+    let lightness = 0.35 + (opacity / 2.0);
+    // a little subdued even when close to the origin
+    let capped_opacity = opacity * 0.8;
+
+    let next_color = Color::hsla(hue, 1.0, lightness, capped_opacity);
+
+    (next_radius, next_color)
 }
