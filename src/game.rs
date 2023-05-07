@@ -376,9 +376,9 @@ fn spawn_objects(commands: &mut Commands, game_level_n: u32) {
     for n in 1..=objects_amount {
         let object_density: ObjectDensity = rand::random();
         let (object_kind, distance_range) = match object_density {
-            ObjectDensity::Light => (ObjectKind::Circle, 0.2..=0.4),
-            ObjectDensity::Medium => (rand::random(), 0.4..=0.6),
-            ObjectDensity::Heavy => (ObjectKind::Ngon, 0.8..=0.8),
+            ObjectDensity::Light => (ObjectKind::Circle, 0.15..=0.85),
+            ObjectDensity::Medium => (rand::random(), 0.25..=0.75),
+            ObjectDensity::Heavy => (ObjectKind::Ngon, 0.5..=0.85),
         };
         let distance_from_center_meters: f32 =
             thread_rng().gen_range(distance_range) * LEVEL_BOUNDS_RADIUS_METERS;
