@@ -18,6 +18,9 @@ const PLAYER_HEIGHT_METERS: f32 = 1.8;
 const FLAG_WIDTH_METERS: f32 = 0.55;
 const FLAG_HEIGHT_METERS: f32 = LEVEL_BOUNDS_RADIUS_METERS / 4.8;
 
+const Z_INDEX_WORLD: f32 = 1.0;
+const Z_INDEX_OBJECTS: f32 = 2.0;
+
 const PLAYER_MAX_FORWARD_VELOCITY: f32 = 95.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -0.5 * PLAYER_MAX_FORWARD_VELOCITY;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 50.0;
@@ -308,6 +311,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(level_shape),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
             ..Default::default()
         },
         GameObject,
@@ -329,6 +333,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(&gravity_source_shape),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
             ..Default::default()
         },
         GameObject,
@@ -359,6 +364,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         commands.spawn((
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shape),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
                 ..Default::default()
             },
             Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
@@ -384,7 +390,7 @@ fn spawn_objects(commands: &mut Commands, game_level_n: u32) {
             thread_rng().gen_range(distance_range) * LEVEL_BOUNDS_RADIUS_METERS;
         let base_x = distance_from_center_meters * PIXELS_PER_METER;
         let angle_radians = (full_turn_radians / objects_amount as f32) * n as f32;
-        let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, 0.0));
+        let mut transform = Transform::from_translation(Vec3::new(base_x, 0.0, Z_INDEX_OBJECTS));
 
         transform.rotate_around(Vec3::ZERO, Quat::from_rotation_z(angle_radians));
         spawn_object(commands, object_kind, object_density, transform);
@@ -493,7 +499,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .iter()
         .choose(&mut thread_rng())
         .unwrap_or(&Vec2::ZERO);
-    let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y);
+    let flag_transform = stand_upright_at_anchor(flag_anchor, flag_extent_y, Z_INDEX_OBJECTS);
 
     commands.spawn((
         ShapeBundle {
@@ -548,7 +554,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .iter()
         .find(|ground_vertex| ground_vertex.distance(*flag_anchor) > min_player_distance_from_flag)
         .unwrap_or(fallback_anchor);
-    let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y);
+    let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y, Z_INDEX_OBJECTS);
 
     commands.spawn((
         ShapeBundle {
@@ -589,7 +595,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     ));
 }
 
-fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
+fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32, z_index: f32) -> Transform {
     let dir_to_gravity_force = -anchor.normalize();
     let angle_to_gravity_force = dir_to_gravity_force.y.atan2(dir_to_gravity_force.x);
     // move the anchor towards the gravity force by half it's height to make it stick from the ground
@@ -598,7 +604,7 @@ fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
     Transform::from_translation(Vec3::new(
         anchor_aligned_with_ground.x,
         anchor_aligned_with_ground.y,
-        0.0,
+        z_index,
     ))
     // the extra angle aligns positive Y (the top of the object) with the gravity force
     .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
