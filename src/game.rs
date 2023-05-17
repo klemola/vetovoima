@@ -18,9 +18,9 @@ const PLAYER_HEIGHT_METERS: f32 = 1.8;
 const FLAG_WIDTH_METERS: f32 = 0.55;
 const FLAG_HEIGHT_METERS: f32 = LEVEL_BOUNDS_RADIUS_METERS / 4.8;
 
-const PLAYER_MAX_FORWARD_VELOCITY: f32 = 64.0;
-const PLAYER_SLOW_DOWN_VELOCITY: f32 = -200.0;
-const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 90.0;
+const PLAYER_MAX_FORWARD_VELOCITY: f32 = 95.0;
+const PLAYER_SLOW_DOWN_VELOCITY: f32 = -0.5 * PLAYER_MAX_FORWARD_VELOCITY;
+const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 50.0;
 
 const BASE_OBJECTS_AMOUNT: u32 = 16;
 const MAX_OBJECTS_AMOUNT: u32 = 60;
@@ -559,20 +559,20 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
             transform: player_transform,
             ..Default::default()
         },
+        Player,
         GameObject,
         Fill {
             options: FillOptions::default(),
             color: VetovoimaColor::YELLOWISH,
         },
         Attractable,
-        Player,
         RigidBody::Dynamic,
         Collider::cuboid(player_extent_x / 2.0, player_extent_y / 2.0),
         ActiveEvents::CONTACT_FORCE_EVENTS,
         ContactForceEventThreshold(225.0),
         AdditionalMassProperties::MassProperties(MassProperties {
             local_center_of_mass: Vec2::new(0.0, -player_extent_y),
-            mass: 0.3,
+            mass: 0.15,
             principal_inertia: 0.0,
         }),
         Restitution::coefficient(0.1),
@@ -600,7 +600,7 @@ fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32) -> Transform {
         anchor_aligned_with_ground.y,
         0.0,
     ))
-    // the extra angle aligns positive Y (the top of the flag pole) with the gravity force
+    // the extra angle aligns positive Y (the top of the object) with the gravity force
     .with_rotation(Quat::from_rotation_z(angle_to_gravity_force - (PI / 2.0)))
 }
 
@@ -700,12 +700,13 @@ fn update_player_velocity(
         Ok((mut vel, transform)) => {
             let forward = transform.local_x();
             let forward_dir = Vec2::new(forward.x, forward.y);
-            let current_velocity = (vel.linvel * forward_dir).length();
-            let negative_velocity = (vel.linvel.normalize() * -forward_dir).length();
-            let intensity = if button_press.left_pressed && negative_velocity == 0.0 {
+            let relative_forward_velocity = forward_dir.dot(vel.linvel);
+            let intensity = if button_press.left_pressed && relative_forward_velocity > 15.0 {
                 // Slow down until the player halts
                 PLAYER_SLOW_DOWN_VELOCITY
-            } else if button_press.right_pressed && current_velocity < PLAYER_MAX_FORWARD_VELOCITY {
+            } else if button_press.right_pressed
+                && relative_forward_velocity < PLAYER_MAX_FORWARD_VELOCITY
+            {
                 // Accelerate in the forward direction
                 PLAYER_MAX_FORWARD_VELOCITY
             } else {
