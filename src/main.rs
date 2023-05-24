@@ -13,11 +13,11 @@ use bevy::{
     input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
     render::camera::ScalingMode,
-    window::{PrimaryWindow, WindowMode, WindowResized, WindowResolution},
+    window::{PrimaryWindow, WindowMode, WindowResized},
 };
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 
-use app::{AppState, ButtonPress, VetovoimaColor, APP_NAME, PIXELS_PER_METER};
+use app::{AppState, ButtonPress, UiConfig, VetovoimaColor, APP_NAME, PIXELS_PER_METER};
 use arcade_cabinet::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 use devtools::DevTools;
 use game::GamePlugin;
@@ -31,12 +31,12 @@ fn main() {
         .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(ButtonPress::default())
+        .insert_resource(UiConfig::default())
         .add_state::<AppState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
-                resolution: WindowResolution::new(1280.0, 720.0),
-                mode: WindowMode::Windowed,
+                mode: WindowMode::Fullscreen,
                 resizable: false,
                 ..default()
             }),
@@ -64,7 +64,7 @@ fn app_setup(mut commands: Commands, primary_window: Query<&Window, With<Primary
     let Ok(window) = primary_window.get_single() else {
         return;
     };
-    let projection_scale = window_to_projection_scale(window, None);
+    let (projection_scale, _window_height) = window_to_projection_scale(window, None);
 
     let mut game_camera = Camera2dBundle::default();
 
@@ -139,7 +139,10 @@ fn keyboard_input(
 fn window_resize(
     resize_event: Res<Events<WindowResized>>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
+    app_state: Res<State<AppState>>,
+    mut next_app_state: ResMut<NextState<AppState>>,
     mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
+    mut ui_config: ResMut<UiConfig>,
 ) {
     let mut reader = resize_event.get_reader();
     for event in reader.iter(&resize_event) {
@@ -147,19 +150,30 @@ fn window_resize(
             let Ok(window) = primary_window.get_single() else {
                 return;
             };
-            let projection_scale = window_to_projection_scale(window, Some(event.height));
+            let (projection_scale, window_height) =
+                window_to_projection_scale(window, Some(event.height));
+            // The world created at 4k, then scaled to fit the practical resolution
+            let scale_ratio = 2160.0 / window_height;
+            let scaled_ui_config = UiConfig::scale(scale_ratio);
 
             projection.scale = projection_scale;
+            // the multiplier leaves some margin around the visuals
+            projection.scaling_mode = ScalingMode::FixedVertical(scale_ratio * 1.1);
+            *ui_config = scaled_ui_config;
+
+            if app_state.0 == AppState::Init {
+                next_app_state.set(AppState::InMenu);
+            }
         }
     }
 }
 
-fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> f32 {
+fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> (f32, f32) {
     let height = if window.mode == WindowMode::Windowed {
         height_override.unwrap_or_else(|| window.height())
     } else {
         window.height()
     };
 
-    height / 2.0
+    (height / 2.0, height)
 }

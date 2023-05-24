@@ -7,8 +7,11 @@ use bevy::{
 };
 use bevy_rapier2d::prelude::*;
 
-use crate::simulation::GravitySource;
-use crate::{app::VetovoimaColor, game::Player};
+use crate::{
+    app::{UiConfig, VetovoimaColor},
+    game::Player,
+    simulation::GravitySource,
+};
 
 #[derive(Component)]
 struct FpsText;
@@ -46,9 +49,8 @@ impl PluginGroup for DevTools {
     }
 }
 
-fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 24.0;
+fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config: Res<UiConfig>) {
+    let font = asset_server.load(ui_config.font_filename);
 
     commands
         .spawn(TextBundle {
@@ -67,7 +69,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "FPS ".to_string(),
                         style: TextStyle {
                             font: font.clone(),
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::WHITEISH,
                         },
                     },
@@ -75,7 +77,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "".to_string(),
                         style: TextStyle {
                             font: font.clone(),
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::YELLOWISH,
                         },
                     },
@@ -103,7 +105,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "Gravity scale ".to_string(),
                         style: TextStyle {
                             font: font.clone(),
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::WHITEISH,
                         },
                     },
@@ -111,7 +113,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "".to_string(),
                         style: TextStyle {
                             font: font.clone(),
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::REDDISH,
                         },
                     },
@@ -139,7 +141,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "Player velocity ".to_string(),
                         style: TextStyle {
                             font: font.clone(),
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::WHITEISH,
                         },
                     },
@@ -147,7 +149,7 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         value: "".to_string(),
                         style: TextStyle {
                             font,
-                            font_size,
+                            font_size: ui_config.font_size_body_small,
                             color: VetovoimaColor::REDDISH,
                         },
                     },

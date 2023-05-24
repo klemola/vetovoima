@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::app::{AppState, VetovoimaColor};
+use crate::app::{AppState, UiConfig, VetovoimaColor};
 
 const GAME_OVER_SCREEN_SHOW_DURATION_SECONDS: u64 = 5;
 
@@ -21,14 +21,17 @@ impl Plugin for GameOverPlugin {
     }
 }
 
-fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn gameover_screen_setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    ui_config: Res<UiConfig>,
+) {
     commands.insert_resource(GameOverScreen(Timer::new(
         Duration::from_secs(GAME_OVER_SCREEN_SHOW_DURATION_SECONDS),
         TimerMode::Once,
     )));
 
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 100.0;
+    let font = asset_server.load(ui_config.font_filename);
 
     commands
         .spawn(NodeBundle {
@@ -51,7 +54,7 @@ fn gameover_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>)
                     "GAME OVER",
                     TextStyle {
                         font,
-                        font_size,
+                        font_size: ui_config.font_size_screen_title,
                         color: VetovoimaColor::REDDISH,
                     },
                 ),
