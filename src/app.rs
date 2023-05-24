@@ -51,6 +51,7 @@ pub struct UiConfig {
 
 impl Default for UiConfig {
     fn default() -> Self {
+        // The default values are alright for 720p-ish screen
         UiConfig {
             font_filename: "VT323-Regular.ttf",
             font_size_screen_title: 100.0,
@@ -68,23 +69,24 @@ impl UiConfig {
     pub fn scale(ui_scale: f32) -> Self {
         let defaults = UiConfig::default();
 
-        println!("ui scale {}", ui_scale);
-
-        if ui_scale < 2.0 {
-            let scale_multiplier = 1.4;
-
-            UiConfig {
-                font_filename: defaults.font_filename,
-                font_size_screen_title: defaults.font_size_screen_title * scale_multiplier,
-                font_size_body_small: defaults.font_size_body_small * scale_multiplier,
-                font_size_countdown: defaults.font_size_countdown * scale_multiplier,
-                font_size_countdown_large: defaults.font_size_countdown_large * scale_multiplier,
-                font_size_menu_item: defaults.font_size_menu_item * scale_multiplier,
-                font_size_app_title: defaults.font_size_app_title * scale_multiplier,
-                scale_multiplier,
-            }
+        // The closer the ui_scale gets to 1.0, the more UI is scaled up (ui_scale of 1.0 means ~4k resolution)
+        let scale_multiplier = if ui_scale < 1.5 {
+            2.0
+        } else if ui_scale < 2.0 {
+            1.4
         } else {
-            defaults
+            1.0
+        };
+
+        UiConfig {
+            font_filename: defaults.font_filename,
+            font_size_screen_title: defaults.font_size_screen_title * scale_multiplier,
+            font_size_body_small: defaults.font_size_body_small * scale_multiplier,
+            font_size_countdown: defaults.font_size_countdown * scale_multiplier,
+            font_size_countdown_large: defaults.font_size_countdown_large * scale_multiplier,
+            font_size_menu_item: defaults.font_size_menu_item * scale_multiplier,
+            font_size_app_title: defaults.font_size_app_title * scale_multiplier,
+            scale_multiplier,
         }
     }
 }
