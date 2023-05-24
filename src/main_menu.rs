@@ -1,7 +1,7 @@
 use bevy::{app::AppExit, prelude::*};
 
 use crate::{
-    app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, APP_NAME},
+    app::{cursor_visible, AppState, ButtonPress, UiConfig, VetovoimaColor, APP_NAME},
     game::GameLevel,
 };
 
@@ -54,9 +54,19 @@ fn show_menu(
     mut menu_event: EventWriter<MenuEvent>,
     mut selected_button: ResMut<SelectedButton>,
     asset_server: Res<AssetServer>,
+    ui_config: Res<UiConfig>,
 ) {
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 64.0;
+    let font = asset_server.load(ui_config.font_filename);
+    let button_width = 400.0 * ui_config.scale_multiplier;
+    let button_height = 80.0 * ui_config.scale_multiplier;
+    let margin = 10.0 * ui_config.scale_multiplier;
+    let button_style = Style {
+        size: Size::new(Val::Px(button_width), Val::Px(button_height)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        margin: UiRect::all(Val::Px(margin)),
+        ..default()
+    };
 
     selected_button.0 = None;
     menu_event.send(MenuEvent::EnterMenu);
@@ -82,7 +92,7 @@ fn show_menu(
                         size: Size::new(Val::Px(600.0), Val::Px(120.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: UiRect::all(Val::Px(20.0)),
+                        margin: UiRect::all(Val::Px(margin * 2.0)),
                         ..default()
                     },
                     background_color: VetovoimaColor::BLACKISH.into(),
@@ -94,7 +104,7 @@ fn show_menu(
                             APP_NAME,
                             TextStyle {
                                 font: font.clone(),
-                                font_size: font_size * 1.6,
+                                font_size: ui_config.font_size_app_title,
                                 color: VetovoimaColor::WHITEISH,
                             },
                         ),
@@ -104,13 +114,7 @@ fn show_menu(
 
             menu_node
                 .spawn(ButtonBundle {
-                    style: Style {
-                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::all(Val::Px(10.0)),
-                        ..default()
-                    },
+                    style: button_style.clone(),
                     background_color: BUTTON_COLOR.into(),
                     ..default()
                 })
@@ -120,7 +124,7 @@ fn show_menu(
                             NEW_GAME_BUTTON_LABEL,
                             TextStyle {
                                 font: font.clone(),
-                                font_size,
+                                font_size: ui_config.font_size_menu_item,
                                 color: VetovoimaColor::WHITEISH,
                             },
                         ),
@@ -131,13 +135,7 @@ fn show_menu(
 
             menu_node
                 .spawn(ButtonBundle {
-                    style: Style {
-                        size: Size::new(Val::Px(400.0), Val::Px(80.0)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::all(Val::Px(10.0)),
-                        ..default()
-                    },
+                    style: button_style.clone(),
                     background_color: BUTTON_COLOR.into(),
                     ..default()
                 })
@@ -147,7 +145,7 @@ fn show_menu(
                             EXIT_BUTTON_LABEL,
                             TextStyle {
                                 font,
-                                font_size,
+                                font_size: ui_config.font_size_menu_item,
                                 color: VetovoimaColor::WHITEISH,
                             },
                         ),

@@ -7,7 +7,9 @@ use rand_distr::{Distribution, Normal, Standard};
 use std::f32::consts::PI;
 use std::time::Duration;
 
-use crate::app::{cursor_visible, AppState, ButtonPress, VetovoimaColor, PIXELS_PER_METER};
+use crate::app::{
+    cursor_visible, AppState, ButtonPress, UiConfig, VetovoimaColor, PIXELS_PER_METER,
+};
 use crate::simulation::{
     apply_forces, update_gravity, Attractable, GravitySource, GRAVITY_SOURCE_RADIUS_METERS,
 };
@@ -249,10 +251,14 @@ fn game_setup(
     spawn_player_and_and_goal(&mut commands, &next_game_level);
 }
 
-fn loading_screen_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn loading_screen_setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    ui_config: Res<UiConfig>,
+) {
     let loading_timer = Timer::from_seconds(LOADING_TIMER_DURATION_SECONDS, TimerMode::Once);
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 100.0;
+    let font = asset_server.load(ui_config.font_filename);
+    let font_size = ui_config.font_size_screen_title;
 
     commands.insert_resource(LoadingState(loading_timer));
 
@@ -450,7 +456,7 @@ fn ngon_props(scale_factor: f32) -> (Path, Collider, f32) {
     let full_turn_radians = 2.0 * PI;
     let std_deviation = 1.3;
     let normal_distribution = Normal::new(base_radius, std_deviation).unwrap();
-    let sides_amount: u32 = thread_rng().gen_range(5..=15);
+    let sides_amount: u32 = thread_rng().gen_range(5..=10);
     let ngon_vertices: Vec<Vec2> = (1..=sides_amount)
         .into_iter()
         .map(|side_n| {
@@ -616,9 +622,8 @@ fn game_ui_cleanup(mut commands: Commands, ui_query: Query<Entity, With<GameUI>>
     }
 }
 
-fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("VT323-Regular.ttf");
-    let font_size = 36.0;
+fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config: Res<UiConfig>) {
+    let font = asset_server.load(ui_config.font_filename);
 
     commands
         .spawn(NodeBundle {
@@ -644,7 +649,7 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         "",
                         TextStyle {
                             font,
-                            font_size,
+                            font_size: ui_config.font_size_countdown,
                             color: VetovoimaColor::BLACKISH,
                         },
                     ),
@@ -847,15 +852,16 @@ fn update_game_over_countdown(
 fn countdown_text_update(
     mut text_query: Query<&mut Text, With<GameOverCountdownText>>,
     game_level: Res<GameLevel>,
+    ui_config: Res<UiConfig>,
 ) {
     match text_query.get_single_mut() {
         Err(_) => {}
         Ok(mut countdown_text) => {
             let seconds_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
             let (text_color, font_size) = if seconds_remaining <= 5 {
-                (VetovoimaColor::REDDISH, 48.0)
+                (VetovoimaColor::REDDISH, ui_config.font_size_countdown_large)
             } else {
-                (VetovoimaColor::BLACKISH, 36.0)
+                (VetovoimaColor::BLACKISH, ui_config.font_size_countdown)
             };
 
             let countdown_text_seconds = &mut countdown_text.sections[0];
