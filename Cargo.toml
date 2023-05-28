@@ -16,6 +16,7 @@ lto = true
 [features]
 default = [
   "bevy/bevy_winit",
+  "bevy/serialize",
   "bevy/png",
   "bevy/x11",
   "bevy_kira_audio/ogg",
@@ -32,3 +33,5 @@ bevy_prototype_lyon = "0.8.0"
 bevy_rapier2d = {version = "0.21.0", features = ["simd-stable", "debug-render-2d"]}
 rand = "0.8.5"
 rand_distr = "0.4.3"
+serde = "1.0.163"
+toml = "0.7.4"
