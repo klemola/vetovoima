@@ -1,4 +1,9 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{
+    prelude::*,
+    window::{PrimaryWindow, WindowMode},
+};
+use serde::Deserialize;
+use std::fs;
 
 pub static APP_NAME: &str = "vetovoima";
 pub const PIXELS_PER_METER: f32 = 18.0;
@@ -11,6 +16,42 @@ pub enum AppState {
     LoadingLevel,
     InGame,
     GameOver,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct VVConfig {
+    pub window_mode: WindowMode,
+    pub window_height_pixels: Option<u32>,
+    pub window_width_pixels: Option<u32>,
+}
+
+impl Default for VVConfig {
+    fn default() -> Self {
+        VVConfig {
+            window_mode: WindowMode::Fullscreen,
+            window_width_pixels: Some(1280),
+            window_height_pixels: Some(720),
+        }
+    }
+}
+
+fn get_config() -> Result<VVConfig, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string("VVConfig.toml")?;
+    let config = toml::from_str(contents.as_str())?;
+
+    Ok(config)
+}
+
+pub fn get_config_or_default() -> VVConfig {
+    match get_config() {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("Could not read or parse VVConfig.toml, falling back to default config");
+            eprintln!("Error: {}", err);
+
+            VVConfig::default()
+        }
+    }
 }
 
 #[derive(Component, Clone, Debug, Default, Resource)]

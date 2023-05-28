@@ -13,11 +13,14 @@ use bevy::{
     input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
     render::camera::ScalingMode,
-    window::{PrimaryWindow, WindowMode, WindowResized},
+    window::{PrimaryWindow, WindowMode, WindowResized, WindowResolution},
 };
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 
-use app::{AppState, ButtonPress, UiConfig, VetovoimaColor, APP_NAME, PIXELS_PER_METER};
+use app::{
+    get_config_or_default, AppState, ButtonPress, UiConfig, VetovoimaColor, APP_NAME,
+    PIXELS_PER_METER,
+};
 use arcade_cabinet::{ArcadeInput, ArcadeInputEvent, RustArcadePlugin};
 use devtools::DevTools;
 use game::GamePlugin;
@@ -27,6 +30,16 @@ use simulation::SimulationPlugin;
 use sounds::SoundsPlugin;
 
 fn main() {
+    let vv_config = get_config_or_default();
+    let window_resolution = match (
+        vv_config.window_width_pixels,
+        vv_config.window_height_pixels,
+    ) {
+        // Apply the user-defined resolution only if both width and height are specified
+        (Some(width), Some(height)) => WindowResolution::new(width as f32, height as f32),
+        _ => WindowResolution::default(),
+    };
+
     App::new()
         .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
@@ -36,7 +49,8 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
-                mode: WindowMode::Fullscreen,
+                mode: vv_config.window_mode,
+                resolution: window_resolution,
                 resizable: false,
                 ..default()
             }),
