@@ -2,7 +2,7 @@ use std::env;
 
 use bevy::{
     app::PluginGroupBuilder,
-    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    diagnostic::{Diagnostics, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
 use bevy_rapier2d::prelude::*;
@@ -27,10 +27,15 @@ struct DebugOutputPlugin;
 
 impl Plugin for DebugOutputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(debug_setup)
-            .add_system(fps_text_update)
-            .add_system(gravity_debug_text_update)
-            .add_system(player_text_update);
+        app.add_systems(Startup, debug_setup);
+        app.add_systems(
+            Update,
+            (
+                fps_text_update,
+                gravity_debug_text_update,
+                player_text_update,
+            ),
+        );
     }
 }
 
@@ -56,11 +61,8 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config
         .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    bottom: Val::Px(58.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
+                bottom: Val::Px(58.0),
+                left: Val::Px(10.0),
                 ..default()
             },
             text: Text {
@@ -92,11 +94,8 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config
         .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    bottom: Val::Px(34.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
+                bottom: Val::Px(34.0),
+                left: Val::Px(10.0),
                 ..default()
             },
             text: Text {
@@ -128,11 +127,8 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config
         .spawn(TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    bottom: Val::Px(10.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
+                bottom: Val::Px(10.0),
+                left: Val::Px(10.0),
                 ..default()
             },
             text: Text {
@@ -161,7 +157,10 @@ fn debug_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_config
         .insert(PlayerText);
 }
 
-fn fps_text_update(diagnostics: Res<Diagnostics>, mut fps_query: Query<&mut Text, With<FpsText>>) {
+fn fps_text_update(
+    diagnostics: Res<DiagnosticsStore>,
+    mut fps_query: Query<&mut Text, With<FpsText>>,
+) {
     for mut text in fps_query.iter_mut() {
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {

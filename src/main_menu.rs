@@ -11,7 +11,7 @@ const BUTTON_ACTIVE_COLOR: Color = VetovoimaColor::BLUEISH_LIGHT;
 static NEW_GAME_BUTTON_LABEL: &str = "New game";
 static EXIT_BUTTON_LABEL: &str = "Exit";
 
-#[derive(Component)]
+#[derive(Component, Event)]
 pub enum MenuEvent {
     EnterMenu,
     BeginNewGame,
@@ -35,17 +35,20 @@ impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<MenuEvent>()
             .insert_resource(SelectedButton(None))
-            .add_systems((show_menu, cursor_visible::<true>).in_schedule(OnEnter(AppState::InMenu)))
             .add_systems(
+                OnEnter(AppState::InMenu),
+                (show_menu, cursor_visible::<true>),
+            )
+            .add_systems(
+                Update,
                 (
                     mouse_interaction,
                     selected_button_change,
                     button_press,
                     init_game,
-                )
-                    .in_set(OnUpdate(AppState::InMenu)),
+                ),
             )
-            .add_system(hide_menu.in_schedule(OnExit(AppState::InMenu)));
+            .add_systems(OnExit(AppState::InMenu), hide_menu);
     }
 }
 
@@ -61,7 +64,8 @@ fn show_menu(
     let button_height = 80.0 * ui_config.scale_multiplier;
     let margin = 10.0 * ui_config.scale_multiplier;
     let button_style = Style {
-        size: Size::new(Val::Px(button_width), Val::Px(button_height)),
+        width: Val::Px(button_width),
+        height: Val::Px(button_height),
         justify_content: JustifyContent::Center,
         align_items: AlignItems::Center,
         margin: UiRect::all(Val::Px(margin)),
@@ -74,7 +78,8 @@ fn show_menu(
     commands
         .spawn(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
@@ -89,7 +94,8 @@ fn show_menu(
             menu_node
                 .spawn(NodeBundle {
                     style: Style {
-                        size: Size::new(Val::Px(600.0), Val::Px(120.0)),
+                        width: Val::Px(600.0),
+                        height: Val::Px(120.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         margin: UiRect::all(Val::Px(margin * 2.0)),
@@ -172,7 +178,7 @@ fn mouse_interaction(
 ) {
     for (interaction, button, mut color) in interaction_query.iter_mut() {
         match *interaction {
-            Interaction::Clicked => {
+            Interaction::Pressed => {
                 *color = BUTTON_ACTIVE_COLOR.into();
 
                 match button {

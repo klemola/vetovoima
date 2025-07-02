@@ -45,10 +45,9 @@ struct Sounds {
 
 impl Plugin for SoundsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(AudioPlugin)
-            .add_startup_system(audio_setup)
-            .add_system(process_menu_events)
-            .add_system(process_game_events)
+        app.add_plugins(AudioPlugin)
+            .add_systems(Startup, audio_setup)
+            .add_systems(Update, (process_menu_events, process_game_events))
             .add_audio_channel::<MainChannel>()
             .add_audio_channel::<EffectChannel>()
             .add_audio_channel::<TransitionChannel>();

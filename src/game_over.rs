@@ -15,9 +15,12 @@ pub struct GameOverPlugin;
 
 impl Plugin for GameOverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(gameover_screen_setup.in_schedule(OnEnter(AppState::GameOver)))
-            .add_system(gameover_screen_update.in_set(OnUpdate(AppState::GameOver)))
-            .add_system(gameover_screen_cleanup.in_schedule(OnExit(AppState::GameOver)));
+        app.add_systems(OnEnter(AppState::GameOver), gameover_screen_setup)
+            .add_systems(
+                Update,
+                gameover_screen_update.run_if(in_state(AppState::GameOver)),
+            )
+            .add_systems(OnExit(AppState::GameOver), gameover_screen_cleanup);
     }
 }
 
@@ -36,7 +39,8 @@ fn gameover_screen_setup(
     commands
         .spawn(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()

@@ -37,6 +37,7 @@ const DEFAULT_COLLISION_GROUP: CollisionGroups =
 const SECONDARY_COLLISION_GROUP: CollisionGroups =
     CollisionGroups::new(Group::GROUP_2, Group::GROUP_2);
 
+#[derive(Event)]
 pub enum GameEvent {
     CountdownTick(u32),
     GoalReached,
@@ -138,17 +139,21 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(ShapePlugin)
+        app.add_plugins(ShapePlugin)
             .add_event::<GameEvent>()
             .insert_resource(PlayerCollision::default())
             .add_systems(
-                (cursor_visible::<false>, loading_screen_setup, game_setup)
-                    .in_schedule(OnEnter(AppState::LoadingLevel)),
+                OnEnter(AppState::LoadingLevel),
+                (cursor_visible::<false>, loading_screen_setup, game_setup),
             )
-            .add_system(loading_update.in_set(OnUpdate(AppState::LoadingLevel)))
-            .add_system(loading_finished_effects.in_schedule(OnExit(AppState::LoadingLevel)))
-            .add_system(game_ui_setup.in_schedule(OnEnter(AppState::InGame)))
             .add_systems(
+                Update,
+                loading_update.run_if(in_state(AppState::LoadingLevel)),
+            )
+            .add_systems(OnExit(AppState::LoadingLevel), loading_finished_effects)
+            .add_systems(OnEnter(AppState::InGame), game_ui_setup)
+            .add_systems(
+                Update,
                 (
                     update_gravity,
                     apply_forces,
@@ -160,9 +165,9 @@ impl Plugin for GamePlugin {
                     countdown_text_update,
                     update_gravity_visuals,
                 )
-                    .in_set(OnUpdate(AppState::InGame)),
+                    .run_if(in_state(AppState::InGame)),
             )
-            .add_systems((game_cleanup, game_ui_cleanup).in_schedule(OnExit(AppState::InGame)));
+            .add_systems(OnExit(AppState::InGame), (game_cleanup, game_ui_cleanup));
     }
 }
 
@@ -265,7 +270,8 @@ fn loading_screen_setup(
     commands
         .spawn(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
@@ -628,7 +634,8 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_conf
     commands
         .spawn(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
