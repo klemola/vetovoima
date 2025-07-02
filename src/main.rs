@@ -100,7 +100,7 @@ fn keyboard_input(
     mut keyboard_events: EventReader<KeyboardInput>,
     mut button_press: ResMut<ButtonPress>,
 ) {
-    for event in keyboard_events.iter() {
+    for event in keyboard_events.read() {
         let is_pressed = ButtonState::is_pressed(&event.state);
 
         match event.key_code {
@@ -125,7 +125,7 @@ fn window_resize(
     mut ui_config: ResMut<UiConfig>,
 ) {
     let mut reader = resize_event.get_reader();
-    for event in reader.iter(&resize_event) {
+    for event in reader.read(&resize_event) {
         for mut projection in query.iter_mut() {
             let Ok(window) = primary_window.get_single() else {
                 return;

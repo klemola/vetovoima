@@ -257,8 +257,7 @@ fn init_game(
     mut app_state: ResMut<NextState<AppState>>,
 ) {
     // Effectively resets the game (start from level 1)
-
-    for event in menu_event.iter() {
+    for event in menu_event.read() {
         match event {
             MenuEvent::BeginNewGame => {
                 commands.remove_resource::<GameLevel>();

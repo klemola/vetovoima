@@ -73,7 +73,7 @@ fn process_menu_events(
     sounds: Res<Sounds>,
     main_channel: Res<AudioChannel<MainChannel>>,
 ) {
-    for event in menu_event.iter() {
+    for event in menu_event.read() {
         match event {
             MenuEvent::EnterMenu => {
                 main_channel.stop();
@@ -95,7 +95,7 @@ fn process_game_events(
     main_channel: Res<AudioChannel<MainChannel>>,
     effect_channel: Res<AudioChannel<EffectChannel>>,
 ) {
-    for event in game_event.iter() {
+    for event in game_event.read() {
         match event {
             GameEvent::CountdownTick(elapsed_secs) => {
                 if *elapsed_secs > 0 {

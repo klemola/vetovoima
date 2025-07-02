@@ -2,7 +2,7 @@ use std::env;
 
 use bevy::{
     app::PluginGroupBuilder,
-    diagnostic::{Diagnostics, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
 use bevy_rapier2d::prelude::*;

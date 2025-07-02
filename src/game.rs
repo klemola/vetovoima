@@ -323,7 +323,10 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(level_shape),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+            spatial: SpatialBundle {
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+                ..Default::default()
+            },
             ..Default::default()
         },
         GameObject,
@@ -345,7 +348,10 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(&gravity_source_shape),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+            spatial: SpatialBundle {
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+                ..Default::default()
+            },
             ..Default::default()
         },
         GameObject,
@@ -376,7 +382,10 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         commands.spawn((
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shape),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+                spatial: SpatialBundle {
+                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
@@ -431,7 +440,10 @@ fn spawn_object(
     commands.spawn((
         ShapeBundle {
             path,
-            transform,
+            spatial: SpatialBundle {
+                transform,
+                ..Default::default()
+            },
             ..Default::default()
         },
         Fill {
@@ -519,7 +531,10 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
             }),
-            transform: flag_transform,
+            spatial: SpatialBundle {
+                transform: flag_transform,
+                ..Default::default()
+            },
             ..Default::default()
         },
         GameObject,
@@ -543,7 +558,10 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(&aura_shape),
-            transform: Transform::from_translation(flag_transform.translation),
+            spatial: SpatialBundle {
+                transform: Transform::from_translation(flag_transform.translation),
+                ..Default::default()
+            },
             ..Default::default()
         },
         Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
@@ -574,7 +592,10 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
                 extents: Vec2::new(player_extent_x, player_extent_y),
                 origin: RectangleOrigin::Center,
             }),
-            transform: player_transform,
+            spatial: SpatialBundle {
+                transform: player_transform,
+                ..Default::default()
+            },
             ..Default::default()
         },
         Player,
@@ -821,7 +842,7 @@ fn detect_player_collision(
     mut player_collision: ResMut<PlayerCollision>,
     time: Res<Time>,
 ) {
-    for event in contact_force_events.iter() {
+    for event in contact_force_events.read() {
         let elapsed = time.elapsed();
         let time_since_previous_collision = elapsed - player_collision.previous_collision_time;
 
