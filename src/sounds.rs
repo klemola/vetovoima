@@ -36,13 +36,10 @@ struct TransitionChannel;
 
 #[derive(Component, Resource)]
 struct Sounds {
-    menu_music: Handle<AudioSource>,
     new_game: Handle<AudioSource>,
     countdown_very_low: Handle<AudioSource>,
     reach_goal: Handle<AudioSource>,
     game_over: Handle<AudioSource>,
-    tick_slow: Handle<AudioSource>,
-    tick_fast: Handle<AudioSource>,
     bump: Handle<AudioSource>,
 }
 
@@ -60,13 +57,10 @@ impl Plugin for SoundsPlugin {
 
 fn audio_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Sounds {
-        menu_music: asset_server.load("sounds/tick_slow.ogg"),
         new_game: asset_server.load("sounds/new_game.ogg"),
         countdown_very_low: asset_server.load("sounds/cd_very_low.ogg"),
         reach_goal: asset_server.load("sounds/reach_goal.ogg"),
         game_over: asset_server.load("sounds/cd_very_low.ogg"),
-        tick_slow: asset_server.load("sounds/tick_slow.ogg"),
-        tick_fast: asset_server.load("sounds/tick_fast.ogg"),
         bump: asset_server.load("sounds/bump.ogg"),
     });
 
@@ -85,7 +79,6 @@ fn process_menu_events(
             MenuEvent::EnterMenu => {
                 main_channel.stop();
                 main_channel.set_volume(1.0);
-                main_channel.play(sounds.menu_music.clone()).looped();
             }
 
             MenuEvent::BeginNewGame => {
@@ -108,12 +101,6 @@ fn process_game_events(
             GameEvent::CountdownTick(elapsed_secs) => {
                 if *elapsed_secs > 0 {
                     match *elapsed_secs {
-                        15 => {
-                            main_channel.stop();
-                            main_channel.set_volume(0.6);
-                            main_channel.play(sounds.tick_fast.clone()).looped();
-                        }
-
                         1..=5 => {
                             main_channel.stop();
                             main_channel.set_volume(0.75);
@@ -136,10 +123,7 @@ fn process_game_events(
                 main_channel.play(sounds.game_over.clone());
             }
 
-            GameEvent::LevelStarted => {
-                main_channel.set_volume(0.6);
-                main_channel.play(sounds.tick_slow.clone()).looped();
-            }
+            GameEvent::LevelStarted => {}
 
             GameEvent::PlayerCollided(time_since_previous_collision, total_force_magnitude) => {
                 let millis: f64 = time_since_previous_collision.as_secs_f64() * 1000.0;
