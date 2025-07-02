@@ -162,7 +162,7 @@ fn fps_text_update(
     mut fps_query: Query<&mut Text, With<FpsText>>,
 ) {
     for mut text in fps_query.iter_mut() {
-        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
                 text.sections[1].value = format!("{:.2}", average);
             }

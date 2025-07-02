@@ -42,7 +42,7 @@ fn main() {
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(ButtonPress::default())
         .insert_resource(UiConfig::default())
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
@@ -82,7 +82,7 @@ fn app_setup(mut commands: Commands, primary_window: Query<&Window, With<Primary
 }
 
 fn app_controls(
-    mut keyboard_input: ResMut<Input<KeyCode>>,
+    mut keyboard_input: ResMut<ButtonInput<KeyCode>>,
     button_press: Res<ButtonPress>,
     app_state: ResMut<State<AppState>>,
     mut next_app_state: ResMut<NextState<AppState>>,
@@ -104,12 +104,12 @@ fn keyboard_input(
         let is_pressed = ButtonState::is_pressed(&event.state);
 
         match event.key_code {
-            Some(KeyCode::Up) => button_press.up_pressed = is_pressed,
-            Some(KeyCode::Down) => button_press.down_pressed = is_pressed,
-            Some(KeyCode::Left) => button_press.left_pressed = is_pressed,
-            Some(KeyCode::Right) => button_press.right_pressed = is_pressed,
-            Some(KeyCode::Return) => button_press.main_control_pressed = is_pressed,
-            Some(KeyCode::Escape) => button_press.select_pressed = is_pressed,
+            KeyCode::ArrowUp => button_press.up_pressed = is_pressed,
+            KeyCode::ArrowDown => button_press.down_pressed = is_pressed,
+            KeyCode::ArrowLeft => button_press.left_pressed = is_pressed,
+            KeyCode::ArrowRight => button_press.right_pressed = is_pressed,
+            KeyCode::Enter => button_press.main_control_pressed = is_pressed,
+            KeyCode::Escape => button_press.select_pressed = is_pressed,
 
             _ => (),
         }

@@ -27,10 +27,10 @@ dev = [
 ]
 
 [dependencies]
-bevy = "0.12.1"
-bevy_kira_audio = "0.18.0"
-bevy_prototype_lyon = "0.10.0"
-bevy_rapier2d = {version = "0.23.0", features = ["simd-stable", "debug-render-2d"]}
+bevy = "0.13.2"
+bevy_kira_audio = "0.19.0"
+bevy_prototype_lyon = "0.11.0"
+bevy_rapier2d = {version = "0.25.0", features = ["simd-stable", "debug-render-2d"]}
 rand = "0.8.5"
 rand_distr = "0.4.3"
 serde = "1.0.163"

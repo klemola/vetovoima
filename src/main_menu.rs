@@ -182,8 +182,12 @@ fn mouse_interaction(
                 *color = BUTTON_ACTIVE_COLOR.into();
 
                 match button {
-                    MenuButton::NewGame => menu_event.send(MenuEvent::BeginNewGame),
-                    MenuButton::Exit => exit.send(AppExit),
+                    MenuButton::NewGame => {
+                        menu_event.send(MenuEvent::BeginNewGame);
+                    }
+                    MenuButton::Exit => {
+                        exit.send(AppExit);
+                    }
                 };
             }
             Interaction::Hovered => {
@@ -227,8 +231,12 @@ fn button_press(
 
     if button_press.main_control_pressed {
         match selected_button.0 {
-            Some(MenuButton::NewGame) => menu_event.send(MenuEvent::BeginNewGame),
-            Some(MenuButton::Exit) => exit.send(AppExit),
+            Some(MenuButton::NewGame) => {
+                menu_event.send(MenuEvent::BeginNewGame);
+            }
+            Some(MenuButton::Exit) => {
+                exit.send(AppExit);
+            }
 
             _ => (),
         }
