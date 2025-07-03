@@ -11,7 +11,7 @@ const BUTTON_ACTIVE_COLOR: Color = VetovoimaColor::BLUEISH_LIGHT;
 static NEW_GAME_BUTTON_LABEL: &str = "New game";
 static EXIT_BUTTON_LABEL: &str = "Exit";
 
-#[derive(Component, Event)]
+#[derive(Event)]
 pub enum MenuEvent {
     EnterMenu,
     BeginNewGame,
@@ -186,7 +186,7 @@ fn mouse_interaction(
                         menu_event.send(MenuEvent::BeginNewGame);
                     }
                     MenuButton::Exit => {
-                        exit.send(AppExit);
+                        exit.send(AppExit::Success);
                     }
                 };
             }
@@ -235,7 +235,7 @@ fn button_press(
                 menu_event.send(MenuEvent::BeginNewGame);
             }
             Some(MenuButton::Exit) => {
-                exit.send(AppExit);
+                exit.send(AppExit::Success);
             }
 
             _ => (),

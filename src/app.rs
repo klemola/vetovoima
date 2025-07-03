@@ -8,7 +8,7 @@ use std::fs;
 pub static APP_NAME: &str = "vetovoima";
 pub const PIXELS_PER_METER: f32 = 18.0;
 
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
+#[derive(States, Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum AppState {
     #[default]
     Init,

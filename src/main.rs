@@ -13,7 +13,7 @@ use bevy::{
     render::camera::ScalingMode,
     window::{PrimaryWindow, WindowMode, WindowResized, WindowResolution},
 };
-use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
+use bevy_rapier2d::plugin::{NoUserData, RapierConfiguration, RapierPhysicsPlugin};
 
 use app::{
     get_config_or_default, AppState, ButtonPress, UiConfig, VetovoimaColor, APP_NAME,
@@ -38,11 +38,6 @@ fn main() {
     };
 
     App::new()
-        .insert_resource(Msaa::Sample4)
-        .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
-        .insert_resource(ButtonPress::default())
-        .insert_resource(UiConfig::default())
-        .init_state::<AppState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
@@ -54,7 +49,7 @@ fn main() {
             ..default()
         }))
         .add_plugins((
-            RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(PIXELS_PER_METER),
+            RapierPhysicsPlugin::<NoUserData>::default(),
             SoundsPlugin,
             MainMenuPlugin,
             SimulationPlugin,
@@ -62,8 +57,25 @@ fn main() {
             GameOverPlugin,
             DevTools,
         ))
-        .add_systems(Startup, app_setup)
-        .add_systems(Update, (app_controls, keyboard_input, window_resize))
+        .insert_resource(Msaa::Sample4)
+        .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
+        .insert_resource(ButtonPress::default())
+        .insert_resource(UiConfig::default())
+        .insert_resource(RapierConfiguration {
+            gravity: Vec2::ZERO,
+            ..RapierConfiguration::new(PIXELS_PER_METER)
+        })
+        .init_state::<AppState>()
+        .add_systems(OnEnter(AppState::Init), app_setup)
+        .add_systems(
+            Update,
+            (
+                app_controls,
+                keyboard_input,
+                window_resize,
+                transition_to_in_menu.run_if(in_state(AppState::Init)),
+            ),
+        )
         .run();
 }
 
@@ -96,6 +108,10 @@ fn app_controls(
     }
 }
 
+fn transition_to_in_menu(mut app_state: ResMut<NextState<AppState>>) {
+    app_state.set(AppState::InMenu);
+}
+
 fn keyboard_input(
     mut keyboard_events: EventReader<KeyboardInput>,
     mut button_press: ResMut<ButtonPress>,
@@ -119,8 +135,6 @@ fn keyboard_input(
 fn window_resize(
     resize_event: Res<Events<WindowResized>>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
-    app_state: Res<State<AppState>>,
-    mut next_app_state: ResMut<NextState<AppState>>,
     mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
     mut ui_config: ResMut<UiConfig>,
 ) {
@@ -140,10 +154,6 @@ fn window_resize(
             // the multiplier leaves some margin around the visuals
             projection.scaling_mode = ScalingMode::FixedVertical(scale_ratio * 1.1);
             *ui_config = scaled_ui_config;
-
-            if *app_state.get() == AppState::Init {
-                next_app_state.set(AppState::InMenu);
-            }
         }
     }
 }
