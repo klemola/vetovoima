@@ -4,7 +4,8 @@ use bevy_rapier2d::prelude::ExternalForce;
 use crate::app::{ButtonPress, PIXELS_PER_METER};
 
 pub const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
-const GRAVITY_FORCE_SCALE: f32 = 750.0 * GRAVITY_SOURCE_RADIUS_METERS;
+// Force scale adjusted for bevy_rapier2d 0.27.0 length units change
+const GRAVITY_FORCE_SCALE: f32 = 200_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
