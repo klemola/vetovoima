@@ -70,7 +70,7 @@ pub fn update_gravity(
     button_press: Res<ButtonPress>,
 ) {
     let force_change = if gravity_source.auto_cycle {
-        let increment = timer.delta_seconds() / 2.0;
+        let increment = timer.delta_secs() / 2.0;
 
         match gravity_source.cycle {
             Attraction::Positive => -increment,

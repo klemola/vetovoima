@@ -57,14 +57,9 @@ fn main() {
             GameOverPlugin,
             DevTools,
         ))
-        .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(VetovoimaColor::BLACKISH))
         .insert_resource(ButtonPress::default())
         .insert_resource(UiConfig::default())
-        .insert_resource(RapierConfiguration {
-            gravity: Vec2::ZERO,
-            ..RapierConfiguration::new(PIXELS_PER_METER)
-        })
         .init_state::<AppState>()
         .add_systems(OnEnter(AppState::Init), app_setup)
         .add_systems(
@@ -85,12 +80,24 @@ fn app_setup(mut commands: Commands, primary_window: Query<&Window, With<Primary
     };
     let (projection_scale, _window_height) = window_to_projection_scale(window, None);
 
-    let mut game_camera = Camera2dBundle::default();
+    let game_camera = Camera2d::default();
 
-    game_camera.projection.scaling_mode = ScalingMode::FixedVertical(2.0);
-    game_camera.projection.scale = projection_scale;
+    commands.spawn((
+        game_camera,
+        Msaa::Sample4,
+        Projection::from(OrthographicProjection {
+            scaling_mode: ScalingMode::FixedVertical {
+                viewport_height: 2.0,
+            },
+            scale: projection_scale,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 
-    commands.spawn(game_camera);
+    commands.spawn(RapierConfiguration {
+        gravity: Vec2::ZERO,
+        ..RapierConfiguration::new(PIXELS_PER_METER)
+    });
 }
 
 fn app_controls(
@@ -138,7 +145,7 @@ fn window_resize(
     mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
     mut ui_config: ResMut<UiConfig>,
 ) {
-    let mut reader = resize_event.get_reader();
+    let mut reader = resize_event.get_cursor();
     for event in reader.read(&resize_event) {
         for mut projection in query.iter_mut() {
             let Ok(window) = primary_window.get_single() else {
@@ -152,7 +159,9 @@ fn window_resize(
 
             projection.scale = projection_scale;
             // the multiplier leaves some margin around the visuals
-            projection.scaling_mode = ScalingMode::FixedVertical(scale_ratio * 1.1);
+            projection.scaling_mode = ScalingMode::FixedVertical {
+                viewport_height: scale_ratio * 1.1,
+            };
             *ui_config = scaled_ui_config;
         }
     }

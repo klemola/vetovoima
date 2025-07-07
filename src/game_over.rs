@@ -37,35 +37,28 @@ fn gameover_screen_setup(
     let font = asset_server.load(ui_config.font_filename);
 
     commands
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: VetovoimaColor::BLACKISH.into(),
-            ..default()
-        })
+            BackgroundColor(VetovoimaColor::BLACKISH),
+            GameOverTitle,
+        ))
         .with_children(|container| {
-            container.spawn(TextBundle {
-                style: Style {
-                    align_items: AlignItems::Center,
-                    ..default()
+            container.spawn((
+                Text::new("GAME OVER"),
+                TextFont {
+                    font: font.clone(),
+                    font_size: ui_config.font_size_screen_title,
+                    ..Default::default()
                 },
-                text: Text::from_section(
-                    "GAME OVER",
-                    TextStyle {
-                        font,
-                        font_size: ui_config.font_size_screen_title,
-                        color: VetovoimaColor::REDDISH,
-                    },
-                ),
-                ..default()
-            });
-        })
-        .insert(GameOverTitle);
+                TextColor(VetovoimaColor::REDDISH),
+            ));
+        });
 }
 
 fn gameover_screen_cleanup(

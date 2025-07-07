@@ -63,21 +63,13 @@ fn show_menu(
     let button_width = 400.0 * ui_config.scale_multiplier;
     let button_height = 80.0 * ui_config.scale_multiplier;
     let margin = 10.0 * ui_config.scale_multiplier;
-    let button_style = Style {
-        width: Val::Px(button_width),
-        height: Val::Px(button_height),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        margin: UiRect::all(Val::Px(margin)),
-        ..default()
-    };
 
     selected_button.0 = None;
     menu_event.send(MenuEvent::EnterMenu);
 
     commands
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
@@ -86,14 +78,13 @@ fn show_menu(
                 padding: UiRect::all(Val::Px(10.0)),
                 ..Default::default()
             },
-            background_color: VetovoimaColor::BLACKISH.into(),
-            ..Default::default()
-        })
+            BackgroundColor(VetovoimaColor::BLACKISH.into()),
+        ))
         .insert(MainMenu)
         .with_children(|menu_node| {
             menu_node
-                .spawn(NodeBundle {
-                    style: Style {
+                .spawn((
+                    Node {
                         width: Val::Px(600.0),
                         height: Val::Px(120.0),
                         justify_content: JustifyContent::Center,
@@ -101,62 +92,69 @@ fn show_menu(
                         margin: UiRect::all(Val::Px(margin * 2.0)),
                         ..default()
                     },
-                    background_color: VetovoimaColor::BLACKISH.into(),
-                    ..default()
-                })
+                    BackgroundColor(VetovoimaColor::BLACKISH.into()),
+                ))
                 .with_children(|parent| {
-                    parent.spawn(TextBundle {
-                        text: Text::from_section(
-                            APP_NAME,
-                            TextStyle {
-                                font: font.clone(),
-                                font_size: ui_config.font_size_app_title,
-                                color: VetovoimaColor::WHITEISH,
-                            },
-                        ),
-                        ..default()
-                    });
+                    parent.spawn((
+                        Text::new(APP_NAME),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: ui_config.font_size_app_title,
+                            ..Default::default()
+                        },
+                        TextColor(VetovoimaColor::WHITEISH),
+                    ));
                 });
 
             menu_node
-                .spawn(ButtonBundle {
-                    style: button_style.clone(),
-                    background_color: BUTTON_COLOR.into(),
-                    ..default()
-                })
-                .with_children(|parent| {
-                    parent.spawn(TextBundle {
-                        text: Text::from_section(
-                            NEW_GAME_BUTTON_LABEL,
-                            TextStyle {
-                                font: font.clone(),
-                                font_size: ui_config.font_size_menu_item,
-                                color: VetovoimaColor::WHITEISH,
-                            },
-                        ),
+                .spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(button_width),
+                        height: Val::Px(button_height),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(margin)),
                         ..default()
-                    });
+                    },
+                    BackgroundColor(BUTTON_COLOR),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Text::new(NEW_GAME_BUTTON_LABEL),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: ui_config.font_size_menu_item,
+                            ..Default::default()
+                        },
+                        TextColor(VetovoimaColor::WHITEISH),
+                    ));
                 })
                 .insert(MenuButton::NewGame);
 
             menu_node
-                .spawn(ButtonBundle {
-                    style: button_style.clone(),
-                    background_color: BUTTON_COLOR.into(),
-                    ..default()
-                })
-                .with_children(|parent| {
-                    parent.spawn(TextBundle {
-                        text: Text::from_section(
-                            EXIT_BUTTON_LABEL,
-                            TextStyle {
-                                font,
-                                font_size: ui_config.font_size_menu_item,
-                                color: VetovoimaColor::WHITEISH,
-                            },
-                        ),
+                .spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(button_width),
+                        height: Val::Px(button_height),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(margin)),
                         ..default()
-                    });
+                    },
+                    BackgroundColor(BUTTON_COLOR),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Text::new(EXIT_BUTTON_LABEL),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: ui_config.font_size_menu_item,
+                            ..Default::default()
+                        },
+                        TextColor(VetovoimaColor::WHITEISH),
+                    ));
                 })
                 .insert(MenuButton::Exit);
         });

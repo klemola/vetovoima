@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy_rapier2d::plugin::RapierContext;
 use bevy_rapier2d::prelude::*;
 use rand::{prelude::*, seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Normal, Standard};
@@ -268,50 +267,39 @@ fn loading_screen_setup(
     commands.insert_resource(LoadingState(loading_timer));
 
     commands
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: VetovoimaColor::BLACKISH.into(),
-            ..default()
-        })
+            BackgroundColor(VetovoimaColor::BLACKISH),
+            LoadingScreen,
+        ))
         .with_children(|container| {
             container
-                .spawn(TextBundle {
-                    style: Style {
-                        align_items: AlignItems::Center,
-                        ..default()
+                .spawn((
+                    Text::new("Level "),
+                    TextFont {
+                        font: font.clone(),
+                        font_size: font_size,
+                        ..Default::default()
                     },
-                    text: Text {
-                        sections: vec![
-                            TextSection {
-                                value: "Level ".to_string(),
-                                style: TextStyle {
-                                    font: font.clone(),
-                                    font_size,
-                                    color: VetovoimaColor::WHITEISH,
-                                },
-                            },
-                            TextSection {
-                                value: "".to_string(),
-                                style: TextStyle {
-                                    font,
-                                    font_size,
-                                    color: VetovoimaColor::YELLOWISH,
-                                },
-                            },
-                        ],
-                        ..default()
+                    TextColor(VetovoimaColor::WHITEISH),
+                ))
+                .with_child((
+                    TextSpan::default(),
+                    TextFont {
+                        font: font.clone(),
+                        font_size: font_size,
+                        ..Default::default()
                     },
-                    ..default()
-                })
-                .insert(LoadingLevelText);
-        })
-        .insert(LoadingScreen);
+                    TextColor(VetovoimaColor::YELLOWISH),
+                    LoadingLevelText,
+                ));
+        });
 }
 
 fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
@@ -323,10 +311,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(level_shape),
-            spatial: SpatialBundle {
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
-                ..Default::default()
-            },
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
             ..Default::default()
         },
         GameObject,
@@ -348,10 +333,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(&gravity_source_shape),
-            spatial: SpatialBundle {
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
-                ..Default::default()
-            },
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
             ..Default::default()
         },
         GameObject,
@@ -382,10 +364,7 @@ fn spawn_level(commands: &mut Commands, game_level: &GameLevel) {
         commands.spawn((
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shape),
-                spatial: SpatialBundle {
-                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
-                    ..Default::default()
-                },
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, Z_INDEX_WORLD)),
                 ..Default::default()
             },
             Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
@@ -440,10 +419,7 @@ fn spawn_object(
     commands.spawn((
         ShapeBundle {
             path,
-            spatial: SpatialBundle {
-                transform,
-                ..Default::default()
-            },
+            transform,
             ..Default::default()
         },
         Fill {
@@ -530,11 +506,9 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
             path: GeometryBuilder::build_as(&shapes::Rectangle {
                 extents: Vec2::new(flag_extent_x, flag_extent_y),
                 origin: RectangleOrigin::Center,
-            }),
-            spatial: SpatialBundle {
-                transform: flag_transform,
                 ..Default::default()
-            },
+            }),
+            transform: flag_transform,
             ..Default::default()
         },
         GameObject,
@@ -558,10 +532,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
     commands.spawn((
         ShapeBundle {
             path: GeometryBuilder::build_as(&aura_shape),
-            spatial: SpatialBundle {
-                transform: Transform::from_translation(flag_transform.translation),
-                ..Default::default()
-            },
+            transform: Transform::from_translation(flag_transform.translation),
             ..Default::default()
         },
         Stroke::new(Color::hsla(0.0, 1.0, 1.0, 0.0), 1.0),
@@ -586,46 +557,47 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
         .unwrap_or(fallback_anchor);
     let player_transform = stand_upright_at_anchor(player_anchor, player_extent_y, Z_INDEX_OBJECTS);
 
-    commands.spawn((
-        ShapeBundle {
-            path: GeometryBuilder::build_as(&shapes::Rectangle {
-                extents: Vec2::new(player_extent_x, player_extent_y),
-                origin: RectangleOrigin::Center,
-            }),
-            spatial: SpatialBundle {
+    commands
+        .spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Rectangle {
+                    extents: Vec2::new(player_extent_x, player_extent_y),
+                    origin: RectangleOrigin::Center,
+                    ..Default::default()
+                }),
                 transform: player_transform,
                 ..Default::default()
             },
-            ..Default::default()
-        },
-        Player,
-        GameObject,
-        Fill {
-            options: FillOptions::default(),
-            color: VetovoimaColor::YELLOWISH,
-        },
-        Attractable,
-        RigidBody::Dynamic,
-        Collider::cuboid(player_extent_x / 2.0, player_extent_y / 2.0),
-        ActiveEvents::CONTACT_FORCE_EVENTS,
-        ContactForceEventThreshold(225.0),
-        AdditionalMassProperties::MassProperties(MassProperties {
-            local_center_of_mass: Vec2::new(0.0, -player_extent_y),
-            mass: 0.15,
-            principal_inertia: 0.0,
-        }),
-        Restitution::coefficient(0.1),
-        GravityScale(0.0),
-        ExternalForce {
-            force: Vec2::ZERO,
-            torque: 0.0,
-        },
-        Velocity {
-            linvel: Vec2::ZERO,
-            angvel: 0.0,
-        },
-        DEFAULT_COLLISION_GROUP,
-    ));
+            Player,
+            GameObject,
+            Fill {
+                options: FillOptions::default(),
+                color: VetovoimaColor::YELLOWISH,
+            },
+            Attractable,
+        ))
+        .insert((
+            RigidBody::Dynamic,
+            Collider::cuboid(player_extent_x / 2.0, player_extent_y / 2.0),
+            ActiveEvents::CONTACT_FORCE_EVENTS,
+            ContactForceEventThreshold(225.0),
+            AdditionalMassProperties::MassProperties(MassProperties {
+                local_center_of_mass: Vec2::new(0.0, -player_extent_y),
+                mass: 0.15,
+                principal_inertia: 0.0,
+            }),
+            Restitution::coefficient(0.1),
+            GravityScale(0.0),
+            ExternalForce {
+                force: Vec2::ZERO,
+                torque: 0.0,
+            },
+            Velocity {
+                linvel: Vec2::ZERO,
+                angvel: 0.0,
+            },
+            DEFAULT_COLLISION_GROUP,
+        ));
 }
 
 fn stand_upright_at_anchor(anchor: &Vec2, object_height: f32, z_index: f32) -> Transform {
@@ -653,44 +625,39 @@ fn game_ui_setup(mut commands: Commands, asset_server: Res<AssetServer>, ui_conf
     let font = asset_server.load(ui_config.font_filename);
 
     commands
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: Color::NONE.into(),
-            ..default()
-        })
+            BackgroundColor(Color::NONE),
+        ))
         .insert(GameUI)
         .with_children(|container| {
-            container
-                .spawn(TextBundle {
-                    style: Style {
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        ..default()
-                    },
-                    text: Text::from_section(
-                        "",
-                        TextStyle {
-                            font,
-                            font_size: ui_config.font_size_countdown,
-                            color: VetovoimaColor::BLACKISH,
-                        },
-                    ),
-
+            container.spawn((
+                Text::new(""),
+                Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
                     ..default()
-                })
-                .insert(GameOverCountdownText);
+                },
+                TextFont {
+                    font: font.clone(),
+                    font_size: ui_config.font_size_countdown,
+                    ..Default::default()
+                },
+                TextColor(VetovoimaColor::BLACKISH),
+                GameOverCountdownText,
+            ));
         });
 }
 
 fn loading_update(
     mut commands: Commands,
-    mut level_text_query: Query<&mut Text, With<LoadingLevelText>>,
+    mut level_text_query: Query<&mut TextSpan, With<LoadingLevelText>>,
     mut loading: ResMut<LoadingState>,
     mut app_state: ResMut<NextState<AppState>>,
     game_level: Option<Res<GameLevel>>,
@@ -700,10 +667,10 @@ fn loading_update(
 
     match game_level {
         Some(level) => {
-            let mut text = level_text_query
+            let mut span = level_text_query
                 .get_single_mut()
                 .expect("Level text doesn't exist during loading!");
-            text.sections[1].value = format!("{}", level.n)
+            **span = format!("{}", level.n)
         }
         None => (),
     };
@@ -766,8 +733,8 @@ fn update_player_velocity(
                 0.0
             };
 
-            vel.linvel += player_control_force * time.delta_seconds();
-            vel.angvel = (angular_velocity * time.delta_seconds())
+            vel.linvel += player_control_force * time.delta_secs();
+            vel.angvel = (angular_velocity * time.delta_secs())
                 .clamp(-PLAYER_MAX_ANGULAR_VELOCITY, PLAYER_MAX_ANGULAR_VELOCITY);
         }
     }
@@ -807,7 +774,7 @@ fn check_goal_reached(
     flag_query: Query<Entity, With<Flag>>,
     mut game_event: EventWriter<GameEvent>,
     mut app_state: ResMut<NextState<AppState>>,
-    rapier_context: Res<RapierContext>,
+    rapier_context: ReadDefaultRapierContext,
 ) {
     if let (Ok((player_transform, player_shape)), Ok(flag_entity)) =
         (player_query.get_single(), flag_query.get_single())
@@ -878,25 +845,41 @@ fn update_game_over_countdown(
 }
 
 fn countdown_text_update(
-    mut text_query: Query<&mut Text, With<GameOverCountdownText>>,
+    mut text_content_query: Query<&mut Text, With<GameOverCountdownText>>,
+    mut text_color_query: Query<&mut TextColor, With<GameOverCountdownText>>,
+    mut text_font_query: Query<&mut TextFont, With<GameOverCountdownText>>,
     game_level: Res<GameLevel>,
     ui_config: Res<UiConfig>,
 ) {
-    match text_query.get_single_mut() {
+    match text_content_query.get_single_mut() {
         Err(_) => {}
         Ok(mut countdown_text) => {
             let seconds_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
-            let (text_color, font_size) = if seconds_remaining <= 5 {
-                (VetovoimaColor::REDDISH, ui_config.font_size_countdown_large)
+            **countdown_text = format!("{}", seconds_remaining);
+        }
+    }
+
+    match text_color_query.get_single_mut() {
+        Err(_) => {}
+        Ok(mut text_color) => {
+            let seconds_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
+            **text_color = if seconds_remaining <= 5 {
+                VetovoimaColor::REDDISH
             } else {
-                (VetovoimaColor::BLACKISH, ui_config.font_size_countdown)
+                VetovoimaColor::BLACKISH
             };
+        }
+    }
 
-            let countdown_text_seconds = &mut countdown_text.sections[0];
-
-            countdown_text_seconds.style.color = text_color;
-            countdown_text_seconds.style.font_size = font_size;
-            countdown_text_seconds.value = format!("{}", seconds_remaining);
+    match text_font_query.get_single_mut() {
+        Err(_) => {}
+        Ok(mut text_font) => {
+            let seconds_remaining = timer_to_secs_remaining(&game_level.countdown_to_game_over);
+            text_font.font_size = if seconds_remaining <= 5 {
+                ui_config.font_size_countdown_large
+            } else {
+                ui_config.font_size_countdown
+            };
         }
     }
 }

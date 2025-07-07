@@ -28,7 +28,7 @@ pub struct VVConfig {
 impl Default for VVConfig {
     fn default() -> Self {
         VVConfig {
-            window_mode: WindowMode::Fullscreen,
+            window_mode: WindowMode::Fullscreen(MonitorSelection::Primary),
             window_width_pixels: Some(1280),
             window_height_pixels: Some(720),
         }
@@ -135,5 +135,5 @@ impl UiConfig {
 pub fn cursor_visible<const VISIBILITY: bool>(mut window: Query<&mut Window, With<PrimaryWindow>>) {
     let mut window = window.get_single_mut().unwrap();
 
-    window.cursor.visible = VISIBILITY;
+    window.cursor_options.visible = VISIBILITY;
 }
