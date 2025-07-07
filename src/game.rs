@@ -22,7 +22,7 @@ const FLAG_HEIGHT_METERS: f32 = LEVEL_BOUNDS_RADIUS_METERS / 4.8;
 const Z_INDEX_WORLD: f32 = 1.0;
 const Z_INDEX_OBJECTS: f32 = 2.0;
 
-const PLAYER_MAX_FORWARD_VELOCITY: f32 = 95.0;
+const PLAYER_MAX_FORWARD_VELOCITY: f32 = 100.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -0.5 * PLAYER_MAX_FORWARD_VELOCITY;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 50.0;
 
@@ -427,7 +427,7 @@ fn spawn_object(
             color: color,
         },
         GameObject,
-        Attractable,
+        Attractable { force_ratio: 1.0 },
         RigidBody::Dynamic,
         collider,
         ColliderMassProperties::Density(density_value),
@@ -574,7 +574,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
                 options: FillOptions::default(),
                 color: VetovoimaColor::YELLOWISH,
             },
-            Attractable,
+            Attractable { force_ratio: 2.0 },
         ))
         .insert((
             RigidBody::Dynamic,

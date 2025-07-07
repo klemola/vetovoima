@@ -4,8 +4,9 @@ use bevy_rapier2d::prelude::ExternalForce;
 use crate::app::{ButtonPress, PIXELS_PER_METER};
 
 pub const GRAVITY_SOURCE_RADIUS_METERS: f32 = 2.5;
-// Force scale adjusted for bevy_rapier2d 0.27.0 length units change
-const GRAVITY_FORCE_SCALE: f32 = 200_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
+// The game world is tiny (less than 30 meters across) and therefore small objects
+// would not have any visible gravity pull without a massive multiplier
+const GRAVITY_FORCE_SCALE: f32 = 250_000.0 * GRAVITY_SOURCE_RADIUS_METERS;
 const MAX_GRAVITY_FORCE: f32 = 1.0;
 const MIN_GRAVITY_FORCE: f32 = -MAX_GRAVITY_FORCE;
 const INITIAL_GRAVITY_FORCE: f32 = MAX_GRAVITY_FORCE;
@@ -34,7 +35,9 @@ impl Default for GravitySource {
 }
 
 #[derive(Component)]
-pub struct Attractable;
+pub struct Attractable {
+    pub force_ratio: f32,
+}
 
 pub struct SimulationPlugin;
 
@@ -102,15 +105,15 @@ pub fn update_gravity(
 }
 
 pub fn apply_forces(
-    mut ext_forces: Query<(&mut ExternalForce, &Transform), With<Attractable>>,
+    mut ext_forces: Query<(&mut ExternalForce, &Transform, &Attractable)>,
     gravity_source: ResMut<GravitySource>,
 ) {
-    for (mut ext_force, transform) in ext_forces.iter_mut() {
+    for (mut ext_force, transform, attractable) in ext_forces.iter_mut() {
         let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
 
         let force_dir = translation_2d.normalize();
         let base_force = force_dir * gravity_source.force * GRAVITY_FORCE_SCALE;
         let gravity_force = base_force / (translation_2d.length() / PIXELS_PER_METER);
-        ext_force.force = gravity_force;
+        ext_force.force = gravity_force * attractable.force_ratio;
     }
 }
