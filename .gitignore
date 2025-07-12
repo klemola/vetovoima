@@ -1,5 +1,6 @@
 /build
 /target
+/web
 scratchpad.rs
 .DS_Store
 VVConfig.toml

@@ -525,7 +525,7 @@ fn spawn_player_and_and_goal(commands: &mut Commands, game_level: &GameLevel) {
 
     // Flag force aura (sweeps gravity objects away from the flag to let the player in)
     let aura_shape = shapes::Circle {
-        radius: 0.0,
+        radius: 1.0,
         center: Vec2::ZERO,
     };
 

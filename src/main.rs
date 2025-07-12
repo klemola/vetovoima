@@ -7,6 +7,7 @@ mod simulation;
 mod sounds;
 
 use bevy::{
+    asset::AssetMetaCheck,
     ecs::event::Events,
     input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
@@ -27,25 +28,29 @@ use simulation::SimulationPlugin;
 use sounds::SoundsPlugin;
 
 fn main() {
-    let vv_config = get_config_or_default();
-    let window_resolution = match (
-        vv_config.window_width_pixels,
-        vv_config.window_height_pixels,
-    ) {
-        // Apply the user-defined resolution only if both width and height are specified
-        (Some(width), Some(height)) => WindowResolution::new(width as f32, height as f32),
-        _ => WindowResolution::default(),
-    };
+    // let vv_config = get_config_or_default();
+    // let window_resolution = match (
+    //     vv_config.window_width_pixels,
+    //     vv_config.window_height_pixels,
+    // ) {
+    //     // Apply the user-defined resolution only if both width and height are specified
+    //     (Some(width), Some(height)) => WindowResolution::new(width as f32, height as f32),
+    //     _ => WindowResolution::default(),
+    // };
 
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: APP_NAME.into(),
-                mode: vv_config.window_mode,
-                resolution: window_resolution,
-                resizable: false,
-                ..default()
-            }),
+        // .add_plugins(DefaultPlugins.set(WindowPlugin {
+        //     primary_window: Some(Window {
+        //         title: APP_NAME.into(),
+        //         mode: vv_config.window_mode,
+        //         resolution: window_resolution,
+        //         resizable: false,
+        //         ..default()
+        //     }),
+        //     ..default()
+        // }))
+        .add_plugins(DefaultPlugins.set(AssetPlugin {
+            meta_check: AssetMetaCheck::Never,
             ..default()
         }))
         .add_plugins((
@@ -67,7 +72,7 @@ fn main() {
             (
                 app_controls,
                 keyboard_input,
-                window_resize,
+                // window_resize,
                 transition_to_in_menu.run_if(in_state(AppState::Init)),
             ),
         )
@@ -84,6 +89,7 @@ fn app_setup(mut commands: Commands, primary_window: Query<&Window, With<Primary
 
     commands.spawn((
         game_camera,
+        #[cfg(not(target_arch = "wasm32"))]
         Msaa::Sample4,
         Projection::from(OrthographicProjection {
             scaling_mode: ScalingMode::FixedVertical {
@@ -139,33 +145,33 @@ fn keyboard_input(
     }
 }
 
-fn window_resize(
-    resize_event: Res<Events<WindowResized>>,
-    primary_window: Query<&Window, With<PrimaryWindow>>,
-    mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
-    mut ui_config: ResMut<UiConfig>,
-) {
-    let mut reader = resize_event.get_cursor();
-    for event in reader.read(&resize_event) {
-        for mut projection in query.iter_mut() {
-            let Ok(window) = primary_window.get_single() else {
-                return;
-            };
-            let (projection_scale, window_height) =
-                window_to_projection_scale(window, Some(event.height));
-            // The world created at 4k, then scaled to fit the practical resolution
-            let scale_ratio = 2160.0 / window_height;
-            let scaled_ui_config = UiConfig::scale(scale_ratio);
+// fn window_resize(
+//     resize_event: Res<Events<WindowResized>>,
+//     primary_window: Query<&Window, With<PrimaryWindow>>,
+//     mut query: Query<&mut OrthographicProjection, With<Camera2d>>,
+//     mut ui_config: ResMut<UiConfig>,
+// ) {
+//     let mut reader = resize_event.get_cursor();
+//     for event in reader.read(&resize_event) {
+//         for mut projection in query.iter_mut() {
+//             let Ok(window) = primary_window.get_single() else {
+//                 return;
+//             };
+//             let (projection_scale, window_height) =
+//                 window_to_projection_scale(window, Some(event.height));
+//             // The world created at 4k, then scaled to fit the practical resolution
+//             let scale_ratio = 2160.0 / window_height;
+//             let scaled_ui_config = UiConfig::scale(scale_ratio);
 
-            projection.scale = projection_scale;
-            // the multiplier leaves some margin around the visuals
-            projection.scaling_mode = ScalingMode::FixedVertical {
-                viewport_height: scale_ratio * 1.1,
-            };
-            *ui_config = scaled_ui_config;
-        }
-    }
-}
+//             projection.scale = projection_scale;
+//             // the multiplier leaves some margin around the visuals
+//             projection.scaling_mode = ScalingMode::FixedVertical {
+//                 viewport_height: scale_ratio * 1.1,
+//             };
+//             *ui_config = scaled_ui_config;
+//         }
+//     }
+// }
 
 fn window_to_projection_scale(window: &Window, height_override: Option<f32>) -> (f32, f32) {
     let height = if window.mode == WindowMode::Windowed {
