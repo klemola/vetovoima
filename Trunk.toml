@@ -1,0 +1,13 @@
+[build]
+dist = "web"
+filehash = true
+frozen = false
+html_output = "index.html"
+inject_scripts = true
+locked = false
+minify = "never"
+no_sri = false
+offline = false
+public_url = "/"
+release = false
+target = "index.html"

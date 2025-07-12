@@ -2210,9 +2210,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "wasi 0.14.2+wasi-0.2.4",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4638,6 +4640,7 @@ dependencies = [
  "bevy_kira_audio",
  "bevy_prototype_lyon",
  "bevy_rapier2d",
+ "getrandom 0.3.3",
  "rand",
  "rand_distr",
  "serde",
