@@ -36,4 +36,14 @@ run-dev-win:
 run-dev:
 	cargo run
 
-.PHONY: build-release-win build-release prepare-zip-win prepare-zip run-dev-win run-dev
+run-web-win:
+	trunk.exe serve --port 9000
+
+prepare-zip-web-win:
+	@echo ">> Building web release"
+	trunk.exe build --release
+	@echo ">> Creating an archive"
+	cd web && zip -rq ../build/vetovoima-web.zip ./*
+	@echo ">> Done!"
+
+.PHONY: build-release-win build-release prepare-zip-win prepare-zip run-dev-win run-dev run-web-win prepare-zip-web-win
