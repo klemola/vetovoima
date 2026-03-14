@@ -132,6 +132,7 @@ fn show_menu(
                 })
                 .insert(MenuButton::NewGame);
 
+            #[cfg(not(target_arch = "wasm32"))]
             menu_node
                 .spawn((
                     Button,
@@ -184,6 +185,7 @@ fn mouse_interaction(
                         menu_event.send(MenuEvent::BeginNewGame);
                     }
                     MenuButton::Exit => {
+                        #[cfg(not(target_arch = "wasm32"))]
                         exit.send(AppExit::Success);
                     }
                 };
@@ -233,6 +235,7 @@ fn button_press(
                 menu_event.send(MenuEvent::BeginNewGame);
             }
             Some(MenuButton::Exit) => {
+                #[cfg(not(target_arch = "wasm32"))]
                 exit.send(AppExit::Success);
             }
 
