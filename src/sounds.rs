@@ -56,11 +56,11 @@ impl Plugin for SoundsPlugin {
 
 fn audio_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Sounds {
-        new_game: asset_server.load("sounds/new_game.ogg"),
-        countdown_very_low: asset_server.load("sounds/cd_very_low.ogg"),
-        reach_goal: asset_server.load("sounds/reach_goal.ogg"),
-        game_over: asset_server.load("sounds/cd_very_low.ogg"),
-        bump: asset_server.load("sounds/bump.ogg"),
+        new_game: asset_server.load("sounds/new_game.wav"),
+        countdown_very_low: asset_server.load("sounds/cd_very_low.wav"),
+        reach_goal: asset_server.load("sounds/reach_goal.wav"),
+        game_over: asset_server.load("sounds/cd_very_low.wav"),
+        bump: asset_server.load("sounds/bump.wav"),
     });
 
     commands.insert_resource(ChannelAudioState::<MainChannel>::default());
