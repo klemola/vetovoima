@@ -8,6 +8,6 @@ locked = false
 minify = "never"
 no_sri = false
 offline = false
-public_url = "/"
+public_url = "./"
 release = false
 target = "index.html"
