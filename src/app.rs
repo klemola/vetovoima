@@ -1,8 +1,12 @@
 use bevy::{
     prelude::*,
-    window::{PrimaryWindow, WindowMode},
+    window::PrimaryWindow,
 };
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::window::WindowMode;
+#[cfg(not(target_arch = "wasm32"))]
 use serde::Deserialize;
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 
 pub static APP_NAME: &str = "vetovoima";
@@ -18,6 +22,7 @@ pub enum AppState {
     GameOver,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize, Debug)]
 pub struct VVConfig {
     pub window_mode: WindowMode,
@@ -25,16 +30,18 @@ pub struct VVConfig {
     pub window_width_pixels: Option<u32>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Default for VVConfig {
     fn default() -> Self {
         VVConfig {
             window_mode: WindowMode::Fullscreen(MonitorSelection::Primary),
-            window_width_pixels: Some(1280),
+            window_width_pixels: Some(720),
             window_height_pixels: Some(720),
         }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn get_config() -> Result<VVConfig, Box<dyn std::error::Error>> {
     let contents = fs::read_to_string("VVConfig.toml")?;
     let config = toml::from_str(contents.as_str())?;
@@ -42,6 +49,7 @@ fn get_config() -> Result<VVConfig, Box<dyn std::error::Error>> {
     Ok(config)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn get_config_or_default() -> VVConfig {
     match get_config() {
         Ok(config) => config,
@@ -106,6 +114,7 @@ impl Default for UiConfig {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl UiConfig {
     pub fn scale(ui_scale: f32) -> Self {
         let defaults = UiConfig::default();
