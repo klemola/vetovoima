@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
     <head>
         <link data-trunk rel="scss" href="index.scss" />
@@ -44,7 +44,7 @@
                         userInputEventNames.forEach((eventName) => {
                             document.removeEventListener(
                                 eventName,
-                                resumeAllContexts
+                                resumeAllContexts,
                             );
                         });
                     }
@@ -57,6 +57,7 @@
         </script>
     </head>
     <body>
+        <div id="loading">Loading...</div>
         <canvas id="bevy-canvas"></canvas>
     </body>
 </html>

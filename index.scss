@@ -1,13 +1,20 @@
 body {
     margin: 0;
     background: #000;
+    color: #fff;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
 }
 
+#loading {
+    position: absolute;
+    font-family: sans-serif;
+}
+
 #bevy-canvas {
+    position: relative;
     width: min(100vw, 100vh);
     height: min(100vw, 100vh);
     outline: none;
