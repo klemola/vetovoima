@@ -26,6 +26,14 @@ const PLAYER_MAX_FORWARD_VELOCITY: f32 = 100.0;
 const PLAYER_SLOW_DOWN_VELOCITY: f32 = -0.5 * PLAYER_MAX_FORWARD_VELOCITY;
 const PLAYER_MAX_ANGULAR_VELOCITY: f32 = 50.0;
 
+const ACCEL_PARTICLE_SPAWN_INTERVAL: f32 = 0.04;
+const ACCEL_PARTICLE_LIFETIME: f32 = 0.4;
+const ACCEL_PARTICLE_BASE_SPEED: f32 = 40.0;
+const ACCEL_PARTICLE_SPREAD: f32 = 35.0;
+const ACCEL_PARTICLE_RADIUS_MIN: f32 = 4.0;
+const ACCEL_PARTICLE_RADIUS_MAX: f32 = 8.5;
+const Z_INDEX_PARTICLES: f32 = 1.5;
+
 const BASE_OBJECTS_AMOUNT: u32 = 16;
 const MAX_OBJECTS_AMOUNT: u32 = 60;
 
@@ -120,6 +128,16 @@ struct GameObject;
 struct GravityRing(f32);
 
 #[derive(Component)]
+struct AccelParticle {
+    lifetime: Timer,
+    velocity: Vec2,
+    hue: f32,
+}
+
+#[derive(Resource)]
+struct ParticleSpawnTimer(Timer);
+
+#[derive(Component)]
 pub struct Player;
 
 #[derive(Component)]
@@ -141,6 +159,10 @@ impl Plugin for GamePlugin {
         app.add_plugins(ShapePlugin)
             .add_event::<GameEvent>()
             .insert_resource(PlayerCollision::default())
+            .insert_resource(ParticleSpawnTimer(Timer::from_seconds(
+                ACCEL_PARTICLE_SPAWN_INTERVAL,
+                TimerMode::Repeating,
+            )))
             .add_systems(
                 OnEnter(AppState::LoadingLevel),
                 (cursor_visible::<false>, loading_screen_setup, game_setup),
@@ -163,6 +185,8 @@ impl Plugin for GamePlugin {
                     update_game_over_countdown,
                     countdown_text_update,
                     update_gravity_visuals,
+                    spawn_accel_particles,
+                    update_accel_particles,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
@@ -707,17 +731,21 @@ fn update_player_velocity(
             let forward = transform.local_x();
             let forward_dir = Vec2::new(forward.x, forward.y);
             let relative_forward_velocity = forward_dir.dot(vel.linvel);
-            let intensity = if button_press.left_pressed && relative_forward_velocity > 15.0 {
-                // Slow down until the player halts
-                PLAYER_SLOW_DOWN_VELOCITY
-            } else if button_press.right_pressed
-                && relative_forward_velocity < PLAYER_MAX_FORWARD_VELOCITY
+            let mut intensity = 0.0;
+            if button_press.left_pressed && relative_forward_velocity > 15.0 {
+                // Slow down until the player halts; contribute 33% more when fighting a boost
+                let brake_multiplier = if button_press.right_pressed {
+                    1.33
+                } else {
+                    1.0
+                };
+                intensity += PLAYER_SLOW_DOWN_VELOCITY * brake_multiplier;
+            }
+            if button_press.right_pressed && relative_forward_velocity < PLAYER_MAX_FORWARD_VELOCITY
             {
                 // Accelerate in the forward direction
-                PLAYER_MAX_FORWARD_VELOCITY
-            } else {
-                0.0
-            };
+                intensity += PLAYER_MAX_FORWARD_VELOCITY;
+            }
             let player_control_force = forward_dir * intensity;
 
             let translation_2d: Vec2 = Vec2::new(transform.translation.x, transform.translation.y);
@@ -908,6 +936,93 @@ fn update_gravity_visuals(
         ring.0 = next_radius;
         stroke.color = next_color;
         *path = ShapePath::build_as(&next_shape);
+    }
+}
+
+fn spawn_accel_particles(
+    mut commands: Commands,
+    mut spawn_timer: ResMut<ParticleSpawnTimer>,
+    player_query: Query<(&Transform, &Velocity), With<Player>>,
+    button_press: Res<ButtonPress>,
+    time: Res<Time>,
+) {
+    spawn_timer.0.tick(time.delta());
+
+    if !spawn_timer.0.just_finished() || !button_press.right_pressed {
+        return;
+    }
+
+    let Ok((transform, velocity)) = player_query.get_single() else {
+        return;
+    };
+
+    let mut rng = thread_rng();
+    let forward = transform.local_x();
+    let forward_dir = Vec2::new(forward.x, forward.y);
+    let backward_dir = -forward_dir;
+    let perpendicular = Vec2::new(-forward_dir.y, forward_dir.x);
+
+    let player_half_width = PLAYER_WIDTH_METERS * PIXELS_PER_METER * 0.5;
+    let spawn_pos = Vec2::new(transform.translation.x, transform.translation.y)
+        + backward_dir * player_half_width;
+
+    let particle_count = rng.gen_range(1..=2);
+    for _ in 0..particle_count {
+        let radius = rng.gen_range(ACCEL_PARTICLE_RADIUS_MIN..=ACCEL_PARTICLE_RADIUS_MAX);
+        let hue = rng.gen_range(25.0..45.0);
+        let spread = rng.gen_range(-ACCEL_PARTICLE_SPREAD..ACCEL_PARTICLE_SPREAD);
+        let particle_velocity = backward_dir * ACCEL_PARTICLE_BASE_SPEED
+            + velocity.linvel * 0.3
+            + perpendicular * spread;
+
+        let shape = shapes::Circle {
+            radius,
+            center: Vec2::ZERO,
+        };
+
+        commands.spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shape),
+                transform: Transform::from_translation(Vec3::new(
+                    spawn_pos.x,
+                    spawn_pos.y,
+                    Z_INDEX_PARTICLES,
+                )),
+                ..Default::default()
+            },
+            Fill {
+                options: FillOptions::default(),
+                color: Color::hsla(hue, 1.0, 0.7, 0.9),
+            },
+            GameObject,
+            AccelParticle {
+                lifetime: Timer::from_seconds(ACCEL_PARTICLE_LIFETIME, TimerMode::Once),
+                velocity: particle_velocity,
+                hue,
+            },
+        ));
+    }
+}
+
+fn update_accel_particles(
+    mut commands: Commands,
+    mut particle_query: Query<(Entity, &mut Transform, &mut Fill, &mut AccelParticle)>,
+    time: Res<Time>,
+) {
+    for (entity, mut transform, mut fill, mut particle) in particle_query.iter_mut() {
+        particle.lifetime.tick(time.delta());
+
+        if particle.lifetime.finished() {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        let delta = time.delta_secs();
+        transform.translation.x += particle.velocity.x * delta;
+        transform.translation.y += particle.velocity.y * delta;
+
+        let remaining = particle.lifetime.remaining_secs() / ACCEL_PARTICLE_LIFETIME;
+        fill.color = Color::hsla(particle.hue, 1.0, 0.7, remaining * 0.9);
     }
 }
 
